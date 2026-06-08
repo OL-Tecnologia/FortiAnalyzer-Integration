@@ -1,0 +1,39 @@
+[project]
+name = "forti-analyzer-reports"
+version = "0.1.0"
+description = "Importação FortiAnalyzer (CRUZ_AZUL) e geração de PDF customizado com Plotly"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.27.0",
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.3.0",
+    "python-dotenv>=1.0.0",
+    "plotly>=5.22.0",
+    "kaleido>=0.2.1",
+    "reportlab>=4.2.0",
+    "Pillow>=10.3.0",
+    "pypdf>=4.2.0",
+    "pdfplumber>=0.11.0",
+    "svglib>=1.6.0",
+    "fastapi>=0.111.0",
+    "uvicorn[standard]>=0.30.0",
+]
+
+[project.scripts]
+forti-report = "forti_report.cli:main"
+forti-web = "forti_report.api.app:main"
+
+[build-system]
+requires = ["setuptools>=69.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

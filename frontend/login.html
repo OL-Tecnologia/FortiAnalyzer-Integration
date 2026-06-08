@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Login — FortiAnalyzer</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="page page-narrow">
+    <header class="header header-center">
+      <div class="brand">
+        <span class="brand-tag">OL Tecnologia</span>
+        <h1>Acesso FortiAnalyzer</h1>
+      </div>
+    </header>
+
+    <main class="card">
+      <p class="lead">
+        Informe suas credenciais do FortiAnalyzer para gerar o relatório MENSAL.
+      </p>
+
+      <form id="loginForm" class="login-form" autocomplete="on">
+        <label class="field">
+          <span>Usuário FAZ</span>
+          <input type="text" id="loginUser" name="user" required autocomplete="username" />
+        </label>
+        <label class="field">
+          <span>Senha</span>
+          <input type="password" id="loginPassword" name="password" required autocomplete="current-password" />
+        </label>
+        <button type="submit" class="btn btn-primary btn-block" id="btnLogin">
+          Entrar
+        </button>
+      </form>
+
+      <p class="error hidden" id="loginError"></p>
+    </main>
+
+    <footer class="footer">
+      <span>FortiAnalyzer → PDF</span>
+    </footer>
+  </div>
+  <script src="login.js"></script>
+</body>
+</html>

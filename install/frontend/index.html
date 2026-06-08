@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Instalador — FortiAnalyzer Reports</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="wizard">
+    <header class="wizard-header">
+      <span class="brand-tag">OL Tecnologia</span>
+      <h1>Instalador</h1>
+      <p class="subtitle">Relatório MENSAL FortiAnalyzer — Cruz Azul</p>
+    </header>
+
+    <nav class="steps" aria-label="Etapas">
+      <div class="step-dot is-active" data-step="1">1</div>
+      <div class="step-line"></div>
+      <div class="step-dot" data-step="2">2</div>
+      <div class="step-line"></div>
+      <div class="step-dot" data-step="3">3</div>
+    </nav>
+
+    <!-- Etapa 1 -->
+    <section class="panel is-visible" id="panelWelcome">
+      <h2>Bem-vindo</h2>
+      <p class="lead">
+        Este assistente instala o gerador de PDF MENSAL unificado.
+        A configuração Cruz Azul já está incluída.
+      </p>
+      <ul class="checklist" id="preflightList">
+        <li id="chkPackage">Verificando pacote...</li>
+        <li id="chkPython">Verificando Python...</li>
+        <li id="chkInstalled">Verificando instalação...</li>
+      </ul>
+      <p class="hint hidden" id="packageHint">
+        Esta instalacao e para a versao por codigo-fonte.
+        A pasta deve conter <strong>pyproject.toml</strong> e <strong>src/</strong>.
+        Para o time de projetos, use o <strong>FortiAnalyzer-Reports.exe</strong> compilado.
+      </p>
+      <p class="hint hidden" id="pythonHint">
+        Instale <a href="https://www.python.org/downloads/" target="_blank" rel="noopener">Python 3.11+</a>
+        marcando <strong>Add python.exe to PATH</strong> e clique em Verificar novamente.
+      </p>
+      <div class="actions">
+        <button type="button" class="btn btn-ghost" id="btnRecheck">Verificar novamente</button>
+        <button type="button" class="btn btn-primary" id="btnStart" disabled>Instalar</button>
+      </div>
+    </section>
+
+    <!-- Etapa 2 -->
+    <section class="panel hidden" id="panelInstall">
+      <h2>Instalando</h2>
+      <p class="lead" id="installMessage">Preparando...</p>
+      <div class="progress-track">
+        <div class="progress-bar" id="installBar"></div>
+      </div>
+      <p class="progress-pct" id="installPct">0%</p>
+      <ul class="log" id="installLog"></ul>
+    </section>
+
+    <!-- Etapa 3 -->
+    <section class="panel hidden" id="panelDone">
+      <h2>Concluído</h2>
+      <p class="lead success-text" id="doneMessage">
+        Instalação finalizada. Use o atalho na área de trabalho ou o botão abaixo.
+      </p>
+      <ul class="checklist done-list">
+        <li>Ambiente Python configurado</li>
+        <li>Configuração Cruz Azul aplicada</li>
+        <li>Atalho <strong>FortiAnalyzer Reports</strong> na área de trabalho</li>
+      </ul>
+      <div class="actions">
+        <button type="button" class="btn btn-primary" id="btnLaunch">Abrir portal</button>
+        <button type="button" class="btn btn-ghost" id="btnReinstall">Reinstalar</button>
+      </div>
+    </section>
+
+    <p class="error hidden" id="errorBox"></p>
+    <footer class="wizard-footer">FortiAnalyzer → PDF · Instalador local</footer>
+  </div>
+  <script src="installer.js"></script>
+</body>
+</html>

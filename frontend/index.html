@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Relatório MENSAL — Cruz Azul</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="header">
+      <div class="brand">
+        <span class="brand-tag">OL Tecnologia</span>
+        <h1>Relatório MENSAL GERAL</h1>
+      </div>
+      <div class="client-badge" id="clientBadge">Carregando…</div>
+      <div class="user-bar">
+        <span class="user-name" id="userLabel"></span>
+        <button type="button" class="btn btn-ghost btn-sm" id="btnLogout">Sair</button>
+      </div>
+    </header>
+
+    <main class="card">
+      <p class="lead">
+        Gera o PDF unificado com todas as unidades e antenas do ADOM configurado.
+        O progresso abaixo mostra cada etapa (FortiAnalyzer, antenas e montagem do PDF).
+      </p>
+
+      <div class="options">
+        <label class="check">
+          <input type="checkbox" id="optCharts" checked />
+          Incluir gráficos
+        </label>
+        <label class="check">
+          <input type="checkbox" id="optForce" />
+          Forçar download do FAZ (ignorar cache)
+        </label>
+      </div>
+
+      <button type="button" class="btn btn-primary" id="btnGenerate" disabled>
+        Gerar relatório
+      </button>
+
+      <section class="progress-panel hidden" id="progressPanel" aria-live="polite">
+        <div class="progress-overall">
+          <div class="progress-header">
+            <span id="progressLabel">Aguardando…</span>
+            <span id="progressPercent">0%</span>
+          </div>
+          <div class="progress-track progress-track-thin">
+            <div class="progress-bar progress-bar-overall" id="progressBar" style="width: 0%"></div>
+          </div>
+        </div>
+        <div class="phase-list" id="phaseList"></div>
+        <p class="progress-step" id="progressStep"></p>
+        <ul class="log" id="progressLog"></ul>
+      </section>
+
+      <section class="result hidden" id="resultPanel">
+        <p class="result-ok" id="resultMessage"></p>
+        <a class="btn btn-download" id="btnDownload" href="#" download>
+          Baixar PDF
+        </a>
+      </section>
+
+      <p class="error hidden" id="errorBox"></p>
+    </main>
+
+    <footer class="footer">
+      <span>FortiAnalyzer → PDF</span>
+      <span id="footerSchedule"></span>
+    </footer>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
