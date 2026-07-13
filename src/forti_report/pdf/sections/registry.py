@@ -6,6 +6,7 @@ def build_default_registry() -> SectionRegistry:
     return SectionRegistry(
         sections=[
             TopSitesSection(),
-            # Adicionar novas seções aqui (ex.: resumo, segurança, bandwidth)
+            # Resumo executivo e segurança ampliada: PDF unificado
+            # (resumo_executivo.py / seguranca.py).
         ]
     )

@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 
 from forti_report.data.wan_models import RankedItem, WanTrafficReport, WebUsageSummary
+from forti_report.data.parsers.faz_inventory import build_inventory_from_pdf_text
 
 
 def parse_wan_traffic_pdf(pdf_path: Path) -> WanTrafficReport:
@@ -53,6 +54,12 @@ def parse_wan_traffic_pdf(pdf_path: Path) -> WanTrafficReport:
         report.top_categories = _parse_categories_from_text(text)
     if not report.device_names:
         report.device_names = _parse_devices_appendix(text)
+
+    report.faz_section_titles, report.faz_charts = build_inventory_from_pdf_text(
+        text,
+        summary_rows=_summary_preview_rows(report.summary),
+        section_blocks=_section_blocks_from_report(report),
+    )
     return report
 
 
@@ -281,3 +288,64 @@ def _recompute_summary(
         applications=base.applications,
         malicious_sites=base.malicious_sites,
     )
+
+
+def _summary_preview_rows(summary: WebUsageSummary) -> list[list[str]]:
+    rows: list[list[str]] = []
+    if summary.allowed_requests:
+        rows.append(["Requisições permitidas", summary.allowed_requests])
+    if summary.blocked_requests:
+        rows.append(["Requisições bloqueadas", summary.blocked_requests])
+    if summary.users:
+        rows.append(["Usuários", str(summary.users)])
+    if summary.sites:
+        rows.append(["Sites", str(summary.sites)])
+    if summary.applications:
+        rows.append(["Aplicações", str(summary.applications)])
+    if summary.categories:
+        rows.append(["Categorias", str(summary.categories)])
+    if summary.malicious_sites:
+        rows.append(["Sites maliciosos", str(summary.malicious_sites)])
+    return rows
+
+
+def _ranked_preview(items: list[RankedItem], *, max_rows: int = 5) -> list[list[str]]:
+    return [
+        [str(item.rank), item.label, item.value or "—", item.percentage or ""]
+        for item in items[:max_rows]
+    ]
+
+
+def _section_blocks_from_report(report: WanTrafficReport) -> list[tuple[str, list[list[str]]]]:
+    blocks: list[tuple[str, list[list[str]]]] = []
+    if report.top_users_allowed:
+        blocks.append(
+            ("Top 10 Usuários por Requisições Permitidas", _ranked_preview(report.top_users_allowed))
+        )
+    if report.top_users_blocked:
+        blocks.append(
+            ("Top 10 Usuários por Requisições Bloqueadas", _ranked_preview(report.top_users_blocked))
+        )
+    if report.top_categories:
+        blocks.append(
+            ("Categorias de Sites Mais Acessados", _ranked_preview(report.top_categories))
+        )
+    if report.top_browsing_categories:
+        blocks.append(
+            ("Categoria com maior tempo de Navegação", _ranked_preview(report.top_browsing_categories))
+        )
+    if report.top_sites_by_browsing:
+        blocks.append(
+            (
+                "Top 20 Sites por Tempo de Navegação",
+                [
+                    [str(s.rank), s.label, s.category or "—", s.value or "—"]
+                    for s in report.top_sites_by_browsing[:5]
+                ],
+            )
+        )
+    if report.top_risk_users:
+        blocks.append(
+            ("Principais Usuários que Acessam Sites de Risco", _ranked_preview(report.top_risk_users))
+        )
+    return blocks

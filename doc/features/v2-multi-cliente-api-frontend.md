@@ -108,7 +108,7 @@ Credenciais FAZ podem ser **globais** (um usuário automação) ou **por cliente
 |--------|------|-----------|
 | GET | `/api/v1/clients` | Lista clientes configurados |
 | GET | `/api/v1/clients/{slug}` | Detalhe + status último PDF |
-| GET | `/api/v1/clients/{slug}/hierarchy` | Unidades/antenas + relatório vinculado |
+| GET | `/api/v1/clients/{slug}/hierarchy` | Unidades regionais/dispositivos + relatório vinculado |
 | POST | `/api/v1/clients/{slug}/reports/mensal/generate` | Body: `{ days, download, charts, force_download }` |
 | GET | `/api/v1/clients/{slug}/reports/mensal/latest` | Metadados (período, tid, data geração) |
 | GET | `/api/v1/clients/{slug}/reports/mensal/latest/download` | Stream PDF |

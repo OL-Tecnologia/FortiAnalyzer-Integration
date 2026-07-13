@@ -204,7 +204,7 @@ def run_install(*, force: bool = False, force_env: bool = False, shortcut: bool 
         found = find_system_python()
         if not found:
             raise RuntimeError(
-                "Python 3.11+ nao encontrado. Instale em python.org com 'Add to PATH'."
+                "Python 3.11+ não encontrado. Instale em python.org com 'Add to PATH'."
             )
         py_cmd, py_ver = found
         with _lock:
@@ -219,28 +219,28 @@ def run_install(*, force: bool = False, force_env: bool = False, shortcut: bool 
             _run_cmd([*py_cmd, "-m", "venv", str(venv_dir)])
             _log("Ambiente virtual criado")
         else:
-            _log("Ambiente virtual ja existe")
+            _log("Ambiente virtual já existe")
 
-        _set(percent=38, step="deps", message="Instalando dependencias...")
+        _set(percent=38, step="deps", message="Instalando dependências...")
         _run_cmd([str(VENV_PYTHON), "-m", "pip", "install", "--upgrade", "pip", "wheel", "setuptools", "-q"])
         _run_cmd([str(VENV_PYTHON), "-m", "pip", "install", "-e", ".", "-q"])
         _log("Pacote forti-analyzer-reports instalado")
 
-        _set(percent=55, step="folders", message="Preparando pastas de saida...")
+        _set(percent=55, step="folders", message="Preparando pastas de saída...")
         for sub in ("output", "output/faz_mensal", "output/chart_cache"):
             (PROJECT_ROOT / sub).mkdir(parents=True, exist_ok=True)
         _log("Pastas output/ prontas")
 
-        _set(percent=68, step="config", message="Aplicando configuracao Cruz Azul...")
+        _set(percent=68, step="config", message="Aplicando configuração Cruz Azul...")
         config_env = config_env_path()
         env_file = PROJECT_ROOT / ".env"
         if config_env.is_file() and (force_env or not env_file.is_file()):
             shutil.copy2(config_env, env_file)
-            _log("Configuracao aplicada (install/config.env -> .env)")
+            _log("Configuração aplicada (install/config.env → .env)")
         else:
             _log(".env mantido")
 
-        _set(percent=82, step="verify", message="Verificando instalacao...")
+        _set(percent=82, step="verify", message="Verificando instalação...")
         result = subprocess.run(
             [
                 str(VENV_PYTHON),
@@ -254,11 +254,11 @@ def run_install(*, force: bool = False, force_env: bool = False, shortcut: bool 
         )
         adom = (result.stdout or "").strip() if result.returncode == 0 else None
         if not adom:
-            raise RuntimeError((result.stderr or "Verificacao falhou").strip())
+            raise RuntimeError((result.stderr or "Verificação falhou").strip())
         _log(f"Sistema OK — ADOM {adom}")
 
         if shortcut:
-            _set(percent=92, step="shortcut", message="Criando atalho na area de trabalho...")
+            _set(percent=92, step="shortcut", message="Criando atalho na área de trabalho...")
             create_desktop_shortcut()
             _log("Atalho 'FortiAnalyzer Reports' criado")
 
@@ -266,7 +266,7 @@ def run_install(*, force: bool = False, force_env: bool = False, shortcut: bool 
             _state.status = "completed"
             _state.percent = 100
             _state.step = "done"
-            _state.message = "Instalacao concluida com sucesso."
+            _state.message = "Instalação concluída com sucesso."
             _state.installed = True
             _state.adom = adom
             _state.logs.append("Pronto para usar.")

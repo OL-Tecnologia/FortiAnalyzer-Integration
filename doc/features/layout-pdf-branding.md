@@ -5,7 +5,7 @@
 ## Capa
 
 - Imagens full width: `cabecalho_capa.png`, `rodape_capa.png`  
-- Texto centralizado: `RELATÓRIO MENSAL  GERAL`, ADOM, contagem unidades/antenas, mês/ano  
+- Texto centralizado: `RELATÓRIO MENSAL  GERAL`, ADOM, contagem unidades regionais/dispositivos, mês/ano  
 - Logo cliente: `logo_cruz-azul.png` (canto inferior direito do bloco central)  
 
 **Módulo:** `pdf/cover_page.py`
@@ -27,7 +27,7 @@
 ## Sumário
 
 - `TableOfContents` ReportLab, estilos compactos, pontilhado  
-- Entradas: resumo global, unidades, antenas (subseções detalhadas fora do TOC)  
+- Entradas: resumo global, unidades regionais, dispositivos (subseções detalhadas fora do TOC)  
 
 **Módulo:** `pdf/mensal_toc.py`
 

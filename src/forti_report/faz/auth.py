@@ -8,12 +8,18 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
+import httpx
+
 from forti_report.config import Settings, get_settings
 from forti_report.faz.client import FortiAnalyzerClient, FortiAnalyzerError
 
 
 class FazAuthError(Exception):
     """Erro de autenticação (credenciais ou sessão inválida)."""
+
+
+class FazConnectionError(FazAuthError):
+    """FAZ inacessível (rede, VPN, timeout)."""
 
 
 class FazRateLimitError(FazAuthError):
@@ -136,6 +142,14 @@ def authenticate_faz(
     try:
         with FortiAnalyzerClient(cred_settings) as client:
             faz_rpc_session = client.login()
+    except httpx.TimeoutException as exc:
+        raise FazConnectionError(
+            "Timeout ao conectar no FortiAnalyzer. Verifique rede/VPN e FAZ_HOST."
+        ) from exc
+    except httpx.RequestError as exc:
+        raise FazConnectionError(
+            "Não foi possível conectar ao FortiAnalyzer. Verifique rede/VPN e FAZ_HOST."
+        ) from exc
     except FortiAnalyzerError as exc:
         raise FazAuthError("Credenciais inválidas") from exc
 

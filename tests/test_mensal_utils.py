@@ -1,5 +1,6 @@
 from forti_report.data.parsers.mensal_json import _rows_to_ranked
 from forti_report.data.parsers.mensal_utils import (
+    block_rate_percent,
     filter_ranked,
     format_bandwidth,
     parse_numeric_value,
@@ -85,3 +86,9 @@ def test_filter_ranked_drops_empty():
         RankedItem(rank=3, label="C", value=""),
     ]
     assert len(filter_ranked(items)) == 1
+
+
+def test_block_rate_percent():
+    assert block_rate_percent("9000", "1000") == "10.0%"
+    assert block_rate_percent("", "") == ""
+    assert block_rate_percent("0", "0") == ""

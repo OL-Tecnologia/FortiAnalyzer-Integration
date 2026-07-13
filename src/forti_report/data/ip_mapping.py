@@ -1,4 +1,4 @@
-"""Mapeamento IP/subnet → antena para filtrar relatório WAN consolidado."""
+"""Mapeamento IP/subnet → dispositivo para filtrar relatório WAN consolidado."""
 
 from __future__ import annotations
 

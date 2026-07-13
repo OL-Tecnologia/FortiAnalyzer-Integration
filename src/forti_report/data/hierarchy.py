@@ -1,4 +1,4 @@
-"""Hierarquia Unidade regional → Antenas (FortiGates por site)."""
+"""Hierarquia: unidade regional → dispositivos (FortiGates por site)."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ REGION_LABELS: dict[str, str] = {
 
 @dataclass
 class AntennaInfo:
-    """Antena = site/dispositivo FortiGate."""
+    """Dispositivo FortiGate vinculado a uma unidade (site)."""
 
     device_name: str
     site_slug: str
@@ -39,7 +39,7 @@ class AntennaInfo:
 
 @dataclass
 class RegionalUnit:
-    """Unidade regional agrupando várias antenas."""
+    """Unidade regional agrupando dispositivos de várias unidades (sites)."""
 
     code: str
     display_name: str
@@ -95,7 +95,7 @@ def region_display_name(code: str) -> str:
 
 
 def regional_sites_label(unit: RegionalUnit) -> str:
-    """Lista legível das antenas da unidade: (Ambulatório, Colégio, ...)."""
+    """Lista legível das unidades (sites) da regional: (Ambulatório, Colégio, ...)."""
     names = [a.display_name for a in sorted(unit.antennas, key=lambda a: a.display_name.lower())]
     return f"({', '.join(names)})" if names else "—"
 
@@ -117,7 +117,7 @@ def build_regional_hierarchy(
     devices: list[dict],
     reports_by_device: dict[str, UnitReport] | None = None,
 ) -> list[RegionalUnit]:
-    """Monta árvore unidade → antenas a partir da lista de devices do FAZ."""
+    """Monta árvore unidade regional → dispositivos a partir da lista de devices do FAZ."""
     reports_by_device = reports_by_device or {}
     buckets: dict[str, list[AntennaInfo]] = {}
 

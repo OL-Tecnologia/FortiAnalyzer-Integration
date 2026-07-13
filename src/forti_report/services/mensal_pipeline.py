@@ -52,7 +52,7 @@ class MensalReportPipeline:
                 prog.emit(
                     phase="faz",
                     step="cache",
-                    message=f"Cache validado — {total} antena(s).",
+                    message=f"Cache validado — {total} dispositivo(s).",
                     phase_percent=100,
                 )
                 return cached
@@ -72,8 +72,8 @@ class MensalReportPipeline:
                     display = _antenna_display_name(device_name)
                     prog.emit(
                         phase="faz",
-                        step="antenna",
-                        message=f"Antena {idx + 1}/{total_devices}: {display}",
+                        step="device",
+                        message=f"Dispositivo {idx + 1}/{total_devices}: {display}",
                         phase_percent=phase_pct,
                     )
                     reports_map[device_name] = self._enrich_unit(
@@ -82,7 +82,7 @@ class MensalReportPipeline:
         else:
             prog.emit(phase="faz", step="metadata", message="Metadados carregados (sem download).", phase_percent=85)
 
-        prog.emit(phase="hierarchy", step="hierarchy", message="Montando hierarquia (unidades e antenas)...", phase_percent=20)
+        prog.emit(phase="hierarchy", step="hierarchy", message="Montando hierarquia (unidades regionais e dispositivos)...", phase_percent=20)
         with FortiAnalyzerClient(self.settings) as client:
             client.login()
             devices = DeviceService(client, self.settings).list_devices()

@@ -63,7 +63,17 @@ async function initLoginPage() {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || "Credenciais inválidas");
+        const detail = typeof err.detail === "string" ? err.detail : null;
+        if (res.status === 503) {
+          throw new Error(detail || "Não foi possível conectar ao FortiAnalyzer. Verifique rede/VPN.");
+        }
+        if (res.status === 429) {
+          throw new Error(detail || "Muitas tentativas. Aguarde alguns minutos.");
+        }
+        if (res.status >= 500) {
+          throw new Error(detail || "Erro interno no servidor. Tente novamente.");
+        }
+        throw new Error(detail || "Credenciais inválidas");
       }
       window.location.href = "/";
     } catch (err) {

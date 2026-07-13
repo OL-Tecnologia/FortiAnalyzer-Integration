@@ -31,11 +31,14 @@ LAYOUT_SECTIONS = [
     "USO DA LARGURA DE BANDA DA INTERNET",
 ]
 
-# Campos que o PDF unificado renderiza por antena
+# Campos que o PDF unificado renderiza por dispositivo
 PDF_RENDERED = {
     "Resumo global (tabela)",
+    "Resumo Executivo — Visão Geral",
     "Análise Abrangente da Navegação Web",
+    "Resumo Executivo (por dispositivo)",
     "RESUMO DE UTILIZAÇÃO WEB (tabela parcial)",
+    "Segurança Ampliada",
     "Gráfico timeline (placeholder)",
     "Top 10 Usuários Permitidas",
     "Top 10 Usuários Bloqueadas",
@@ -197,7 +200,7 @@ def main() -> None:
         print(f"  Arquivo: {UNIFIED.name}")
         print(f"  Páginas: {len(r.pages)}")
         text0 = (r.pages[2].extract_text() or "")[:500] if len(r.pages) > 2 else ""
-        print(f"  Seções renderizadas por antena (código): {len(PDF_RENDERED)} tipos")
+        print(f"  Seções renderizadas por dispositivo (código): {len(PDF_RENDERED)} tipos")
         for s in PDF_RENDERED:
             print(f"    · {s}")
 
@@ -226,7 +229,7 @@ def main() -> None:
         with_rows = [c for c in sample if c["rows"] > 0]
         mapped_n = sum(1 for c in with_rows if not match_field(c["title"]).startswith("NÃO"))
         rendered_n = 8  # main sections in unified pdf
-        print(f"\nEstimativa CAS (1 antena): JSON tabular ~{mapped_n}/{len(with_rows)} charts mapeados "
+        print(f"\nEstimativa CAS (1 dispositivo): JSON tabular ~{mapped_n}/{len(with_rows)} charts mapeados "
               f"({100*mapped_n//max(len(with_rows),1)}%)")
         print(f"Estimativa PDF unificado: ~{rendered_n} blocos principais vs ~{len(with_rows)} blocos com dados no FAZ")
 

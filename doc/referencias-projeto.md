@@ -18,7 +18,7 @@ fortiAnalyzer/
 │   └── app.js
 │   └── img/                    # Capa, cabeçalho interno, logos
 ├── output/                     # PDFs e artefatos gerados
-│   ├── faz_mensal/             # Cache JSON (+ .meta.json) por antena
+│   ├── faz_mensal/             # Cache JSON (+ .meta.json) por dispositivo
 │   ├── chart_cache/            # PNG de gráficos (por escopo TID)
 │   └── hierarchy.json          # Snapshot hierarquia após pull-hierarchy
 ├── scripts/                    # Utilitários CLI auxiliares
@@ -66,7 +66,7 @@ Definições em: `src/forti_report/config.py`.
 | Artefato | Descrição |
 |----------|-----------|
 | `MENSAL_UNIFICADO_{ADOM}.pdf` | PDF mensal unificado entregável |
-| `faz_mensal/{device}.json` | Export JSON FAZ por antena (nome fixo, conteúdo sobrescrito) |
+| `faz_mensal/{device}.json` | Export JSON FAZ por dispositivo (nome fixo, conteúdo sobrescrito) |
 | `faz_mensal/{device}.meta.json` | TID e período para validar cache |
 | `chart_cache/` | PNG Plotly; subpastas por escopo `tid:` |
 | `unidades/`, `wan_unidades/` | PDFs regionais / WAN (pipelines legados) |
@@ -97,7 +97,7 @@ Definições em: `src/forti_report/config.py`.
 
 | Arquivo | Área |
 |---------|------|
-| `tests/test_hierarchy.py` | Agrupamento unidade → antena |
+| `tests/test_hierarchy.py` | Agrupamento unidade regional → dispositivo |
 | `tests/test_mensal_json.py` | Parser JSON MENSAL |
 | `tests/test_mensal_pipeline.py` | Pipeline MENSAL |
 | `tests/test_mensal_utils.py` | Utilitários métricas |

@@ -1,7 +1,7 @@
 FortiAnalyzer Reports - Cruz Azul
 ==================================
 
-VERSAO COMPILADA (.exe) — RECOMENDADO PARA O TIME
+VERSÃO COMPILADA (.exe) — RECOMENDADO PARA O TIME
 -------------------------------------------------
 
   Pasta: dist\FortiAnalyzer-Reports\
@@ -11,29 +11,39 @@ VERSAO COMPILADA (.exe) — RECOMENDADO PARA O TIME
       FortiAnalyzer-Reports.exe
 
   O portal abre em http://localhost:8000/login.html
-  Nao precisa de Python nem instalacao.
+  Não precisa de Python nem instalação.
 
-  Na primeira execucao, o .env e criado automaticamente (config Cruz Azul).
+  Na primeira execução, o .env é criado automaticamente (config Cruz Azul).
   Credenciais FAZ: informe no login do portal.
 
+  Distribua a pasta FortiAnalyzer-Reports\ inteira (não copie só o .exe).
 
-DESENVOLVIMENTO / INSTALACAO POR CODIGO-FONTE
+
+DESENVOLVIMENTO / INSTALAÇÃO POR CÓDIGO-FONTE
 ---------------------------------------------
 
   1. Duplo clique em install.bat (assistente em http://127.0.0.1:8765)
   2. Ou: py -3 -m venv .venv && pip install -e .
-  3. Uso diario: FortiAnalyzer Reports.bat
+  3. Uso diário: FortiAnalyzer Reports.bat
 
 
 COMPILAR O .EXE (EQUIPE DE DESENVOLVIMENTO)
------------------------------------------
+-------------------------------------------
 
   powershell -ExecutionPolicy Bypass -File install\build_app.ps1
 
   Gera dist\FortiAnalyzer-Reports\ para distribuir ao time.
 
 
-REQUISITO (somente versao por codigo-fonte)
+TERMINOLOGIA (relatórios)
+-------------------------
+
+  Unidade regional  — ex.: CAS - Campinas, SPO
+  Unidade (site)    — ex.: Ambulatório, Colégio
+  Dispositivo       — hostname FortiGate no FAZ (fw-{região}-cruz-azul-{site})
+
+
+REQUISITO (somente versão por código-fonte)
 -------------------------------------------
   Python 3.11+ com "Add to PATH"
   https://www.python.org/downloads/

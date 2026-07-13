@@ -134,3 +134,15 @@ def ranked_chart_values(items: list[RankedItem], *, max_items: int = 15) -> tupl
         labels.append(item.label[:50])
         values.append(num)
     return labels, values
+
+
+def block_rate_percent(allowed: str, blocked: str) -> str:
+    """Calcula taxa de bloqueio a partir de strings numéricas do FAZ."""
+    a = parse_numeric_value(allowed or "")
+    b = parse_numeric_value(blocked or "")
+    if a is None and b is None:
+        return ""
+    total = (a or 0) + (b or 0)
+    if total <= 0:
+        return ""
+    return f"{100.0 * (b or 0) / total:.1f}%"

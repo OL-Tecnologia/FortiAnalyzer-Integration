@@ -46,6 +46,19 @@ def test_login_sets_cookie(mock_auth):
     assert "faz_portal_session" in res.cookies
 
 
+@patch("forti_report.api.app.authenticate_faz")
+def test_login_connection_error_returns_503(mock_auth):
+    from forti_report.faz.auth import FazConnectionError
+
+    mock_auth.side_effect = FazConnectionError("Timeout ao conectar no FortiAnalyzer.")
+    res = client.post(
+        "/api/auth/faz/login",
+        json={"user": "operator", "password": "secret"},
+    )
+    assert res.status_code == 503
+    assert "Timeout" in res.json()["detail"]
+
+
 @patch("forti_report.faz.auth.FortiAnalyzerClient")
 @patch("forti_report.api.app.start_mensal_job")
 def test_generate_with_session(mock_start, mock_client_cls):

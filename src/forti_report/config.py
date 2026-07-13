@@ -53,6 +53,32 @@ class Settings(BaseSettings):
 
     output_dir: Path = Field(default=PROJECT_ROOT / "output")
 
+    # Agendamento mensal + e-mail
+    mensal_schedule_enabled: bool = False
+    mensal_schedule_day: int = 5
+    mensal_schedule_hour: int = 6
+    mensal_schedule_minute: int = 0
+    mensal_schedule_timezone: str = "America/Sao_Paulo"
+    mensal_schedule_days: int = 60
+    mensal_schedule_force_download: bool = True
+    mensal_schedule_retry_enabled: bool = True
+    mensal_schedule_max_retries: int = 3
+    mensal_schedule_retry_hours: int = 2
+    mensal_schedule_state_dir: Path = Field(default=PROJECT_ROOT / "output" / "scheduler")
+
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_use_tls: bool = True
+    smtp_use_ssl: bool = False
+    smtp_use_auth: bool = True
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_timeout: int = 60
+    smtp_from: str = "notificacao@onelinea.com.br"
+    smtp_to: str = "leandro.souza@cruzazulsp.com.br"
+    smtp_cc: str = ""
+    smtp_alert_to: str = "roliveira@onelinea.com.br"
+
     @property
     def jsonrpc_url(self) -> str:
         scheme = "https" if self.faz_use_ssl else "http"

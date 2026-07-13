@@ -31,7 +31,7 @@ class SectionData:
 
 @dataclass
 class UnitReport:
-    """Relatório de uma antena (FortiGate / site)."""
+    """Relatório de um dispositivo (FortiGate / site)."""
 
     device_name: str
     display_name: str

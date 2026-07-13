@@ -1,4 +1,4 @@
-"""Parser do PDF MENSAL- RELATÓRIO GERAL (FortiAnalyzer, por antena)."""
+"""Parser do PDF MENSAL- RELATÓRIO GERAL (FortiAnalyzer, por dispositivo)."""
 
 from __future__ import annotations
 
@@ -30,4 +30,7 @@ def parse_mensal_geral_pdf(pdf_path: Path, *, device_name: str = "") -> MensalGe
         sdwan_apps=base.top_apps_bandwidth,
         top_bandwidth_users=base.top_users_allowed[:10],
         generated_at=base.generated_at,
+        faz_section_titles=list(base.faz_section_titles),
+        faz_charts=list(base.faz_charts),
+        content_source="pdf",
     )

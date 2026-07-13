@@ -1,4 +1,4 @@
-"""PDF unificado MENSAL- RELATÓRIO GERAL — 6 unidades, 11 antenas."""
+"""PDF unificado MENSAL- RELATÓRIO GERAL — 6 unidades regionais, 11 dispositivos."""
 
 from __future__ import annotations
 
@@ -33,6 +33,7 @@ from forti_report.charts.plotly_charts import (
     top_users_bar_chart,
 )
 from forti_report.services.mensal_cache import chart_scope_for_unit
+from forti_report.services.progress import clamp_percent
 from forti_report.config import Settings, get_settings
 from forti_report.data.hierarchy import AntennaInfo, RegionalUnit
 from forti_report.data.mensal_models import MensalGeralReport, PolicyDetailRow
@@ -62,7 +63,12 @@ from forti_report.pdf.internal_page import (
 )
 from forti_report.pdf.page_layout import apply_lateral_margins
 from forti_report.pdf.table_utils import data_table, ranked_table
-from forti_report.services.progress import clamp_percent
+from forti_report.pdf.sections.faz_conteudo import build_faz_conteudo_flowables
+from forti_report.pdf.sections.resumo_executivo import (
+    build_global_resumo_executivo_flowables,
+    build_resumo_executivo_flowables,
+)
+from forti_report.pdf.sections.seguranca import build_seguranca_flowables
 
 
 _SECTION_GAP = 0.12 * cm
@@ -71,7 +77,7 @@ _LOCALITY_BREAK = 3.5 * cm  # quebra de página só se faltar espaço útil
 
 
 class UnifiedMensalPdfBuilder:
-    """Gera um único PDF com todas as antenas agrupadas por unidade regional."""
+    """Gera um único PDF com todos os dispositivos agrupados por unidade regional."""
 
     def __init__(self, settings: Settings | None = None):
         self.settings = settings or get_settings()
@@ -180,10 +186,19 @@ class _UnifiedMensalDoc(BaseDocTemplate):
         story.append(PageBreak())
         self._tick_pdf("Tabela resumo global...")
         story.extend(self._pack_section(self._global_summary()))
+        story.extend(
+            self._pack_section(
+                build_global_resumo_executivo_flowables(
+                    self.regional_units,
+                    width=self.width,
+                    styles=getSampleStyleSheet(),
+                )
+            )
+        )
 
         for ru in self.regional_units:
             story.append(PageBreak())
-            self._tick_pdf(f"Unidade {ru.display_name} — introdução...")
+            self._tick_pdf(f"Unidade regional {ru.display_name} — introdução...")
             story.extend(self._pack_section(self._regional_intro(ru)))
             for ant_idx, antenna in enumerate(ru.antennas):
                 if ant_idx > 0:
@@ -329,8 +344,8 @@ class _UnifiedMensalDoc(BaseDocTemplate):
             flow.append(
                 Paragraph(
                     "Seções previstas neste relatório (layout MENSAL GERAL): "
-                    "Resumo de Utilização Web, Top Usuários (permitidos/bloqueados), "
-                    "Categorias de Sites, Top Sites por Navegação, Usuários de Risco, "
+                    "Resumo Executivo, Resumo de Utilização Web, Top Usuários (permitidos/bloqueados), "
+                    "Segurança Ampliada, Categorias de Sites, Top Sites por Navegação, "
                     "SD-WAN e Consumo de Banda.",
                     body,
                 )
@@ -345,7 +360,26 @@ class _UnifiedMensalDoc(BaseDocTemplate):
         *,
         anchor_prefix: str = "",
     ) -> list:
-        flow: list = [
+        flow: list = []
+        exec_block = build_resumo_executivo_flowables(
+            mensal,
+            width=self.width,
+            styles=styles,
+            anchor_prefix=anchor_prefix,
+        )
+        if exec_block:
+            flow.extend(self._pack_section(exec_block))
+
+        faz_block = build_faz_conteudo_flowables(
+            mensal,
+            width=self.width,
+            styles=styles,
+            anchor_prefix=anchor_prefix,
+        )
+        if faz_block:
+            flow.extend(self._pack_section(faz_block))
+
+        flow.extend([
             Spacer(1, _SECTION_GAP),
             Paragraph("Análise Abrangente da Navegação Web da Rede", styles["Heading2"]),
             Paragraph(
@@ -354,7 +388,7 @@ class _UnifiedMensalDoc(BaseDocTemplate):
                 f"referentes ao dispositivo <b>{mensal.device_name}</b>.",
                 body,
             ),
-        ]
+        ])
         sections = [
             ("resumo", self._summary_section(mensal, styles, anchor_prefix)),
             ("timeline", self._timeline_section(mensal, styles, anchor_prefix)),
@@ -382,6 +416,7 @@ class _UnifiedMensalDoc(BaseDocTemplate):
                 ),
             ),
             ("categorias-sites", None),
+            ("seguranca", None),
             (
                 "bloqueio-resumo",
                 self._ranked_section(
@@ -470,6 +505,15 @@ class _UnifiedMensalDoc(BaseDocTemplate):
         for key, block in sections:
             if key == "categorias-sites":
                 flow.extend(self._categories_and_sites_sections(mensal, styles, anchor_prefix))
+            elif key == "seguranca":
+                sec = build_seguranca_flowables(
+                    mensal,
+                    width=self.width,
+                    styles=styles,
+                    anchor_prefix=anchor_prefix,
+                )
+                if sec:
+                    flow.extend(self._pack_section(sec))
             elif key == "sdwan":
                 flow.extend(self._sdwan_full_section(mensal, styles, anchor_prefix))
             elif block:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import time
+from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,30 +13,52 @@ from fastapi.responses import FileResponse, StreamingResponse
 from forti_report.api.deps import get_portal_session, require_faz_session
 from forti_report.api.schemas import (
     AuthMeResponse,
+    AutomationSettingsResponse,
+    AutomationSettingsUpdate,
     ClientInfoResponse,
     FazLoginRequest,
     GenerateMensalRequest,
     JobCreatedResponse,
+    SchedulerStatusResponse,
 )
 from forti_report.config import get_settings
 from forti_report.runtime_paths import frontend_dir
 from forti_report.faz.auth import (
     FazAuthError,
+    FazConnectionError,
     FazPortalSession,
     FazRateLimitError,
     authenticate_faz,
     invalidate_session,
     settings_for_session,
 )
+from forti_report.services.automation_settings import (
+    get_automation_settings,
+    update_automation_settings,
+)
 from forti_report.services.job_store import JobRecord
 from forti_report.services.mensal_job import get_job_store, start_mensal_job
+from forti_report.services.mensal_scheduler import (
+    get_scheduler_status,
+    start_background_scheduler,
+    stop_background_scheduler,
+)
 
 FRONTEND_DIR = frontend_dir()
+
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    stop_event = start_background_scheduler()
+    yield
+    stop_background_scheduler(stop_event)
+
 
 app = FastAPI(
     title="FortiAnalyzer Reports API",
     description="Geração do relatório MENSAL unificado (CRUZ_AZUL)",
-    version="1.1.0",
+    version="1.2.0",
+    lifespan=_lifespan,
 )
 
 app.add_middleware(
@@ -103,6 +126,8 @@ def faz_login(body: FazLoginRequest, request: Request, response: Response) -> Au
         )
     except FazRateLimitError as exc:
         raise HTTPException(429, str(exc)) from exc
+    except FazConnectionError as exc:
+        raise HTTPException(503, str(exc)) from exc
     except FazAuthError as exc:
         raise HTTPException(401, str(exc)) from exc
 
@@ -148,6 +173,50 @@ def client_info() -> ClientInfoResponse:
         display_name="Cruz Azul",
         report_schedule=settings.faz_report_schedule or "MENSAL- RELATÓRIO GERAL",
     )
+
+
+@app.get("/api/scheduler/status", response_model=SchedulerStatusResponse)
+def scheduler_status(
+    session: FazPortalSession = Depends(require_faz_session),
+) -> SchedulerStatusResponse:
+    settings = get_settings()
+    status = get_scheduler_status(settings)
+    return SchedulerStatusResponse(
+        enabled=status.enabled,
+        period=status.period,
+        next_run_at=status.next_run_at,
+        last_success_period=status.last_success_period,
+        last_success_at=status.last_success_at,
+        last_status=status.last_status,
+        last_error=status.last_error,
+        attempts=status.attempts,
+        running=status.running,
+        schedule_day=settings.mensal_schedule_day,
+        schedule_time=f"{settings.mensal_schedule_hour:02d}:{settings.mensal_schedule_minute:02d}",
+        timezone=settings.mensal_schedule_timezone,
+    )
+
+
+@app.get("/api/settings/automation", response_model=AutomationSettingsResponse)
+def get_automation_config(
+    session: FazPortalSession = Depends(require_faz_session),
+) -> AutomationSettingsResponse:
+    view = get_automation_settings()
+    return AutomationSettingsResponse(**view.__dict__)
+
+
+@app.put("/api/settings/automation", response_model=AutomationSettingsResponse)
+def put_automation_config(
+    body: AutomationSettingsUpdate,
+    session: FazPortalSession = Depends(require_faz_session),
+) -> AutomationSettingsResponse:
+    try:
+        view = update_automation_settings(body.model_dump(exclude_unset=True))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(500, f"Não foi possível gravar .env: {exc}") from exc
+    return AutomationSettingsResponse(**view.__dict__)
 
 
 @app.post("/api/reports/mensal/generate", response_model=JobCreatedResponse)

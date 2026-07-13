@@ -1,4 +1,8 @@
-from forti_report.data.hierarchy import platform_model, site_display_name
+from forti_report.data.hierarchy import platform_model, region_display_name, site_display_name
+
+
+def test_region_display_name_cas():
+    assert region_display_name("cas") == "CAS - Campinas"
 
 
 def test_site_display_name_accents():

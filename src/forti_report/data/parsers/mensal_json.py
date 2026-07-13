@@ -9,7 +9,8 @@ import unicodedata
 from datetime import datetime
 from typing import Any
 
-from forti_report.data.mensal_models import MensalGeralReport, PolicyDetailRow, TimelineSlice
+from forti_report.data.mensal_models import FazChartRecord, MensalGeralReport, PolicyDetailRow, TimelineSlice
+from forti_report.data.parsers.faz_inventory import build_inventory_from_json_charts
 from forti_report.data.parsers.mensal_utils import filter_ranked
 from forti_report.data.wan_models import RankedItem, WebUsageSummary
 
@@ -60,6 +61,10 @@ def parse_mensal_json(raw: bytes, *, device_name: str = "") -> MensalGeralReport
         if not rows:
             continue
         _assign_chart(report, title, rows)
+
+    if isinstance(charts, list):
+        report.faz_section_titles, report.faz_charts = build_inventory_from_json_charts(charts)
+        report.content_source = "json"
 
     _enrich_summary_from_macros(report)
     return report

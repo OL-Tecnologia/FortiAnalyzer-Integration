@@ -12,7 +12,7 @@ from forti_report.runtime_paths import bundled_config_env, project_root
 
 def _ensure_runtime() -> None:
     root = project_root()
-    for sub in ("output", "output/faz_mensal", "output/chart_cache"):
+    for sub in ("output", "output/faz_mensal", "output/chart_cache", "output/scheduler", "output/logs"):
         (root / sub).mkdir(parents=True, exist_ok=True)
 
     env_file = root / ".env"
