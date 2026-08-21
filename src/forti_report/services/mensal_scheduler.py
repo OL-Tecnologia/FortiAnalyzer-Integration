@@ -332,37 +332,63 @@ def run_scheduled_mensal(
             )
 
 
+def _iter_schedule_settings() -> list[Settings]:
+    """Settings por tenant com agenda ligada (multi-tenant)."""
+    from forti_report.clients import list_clients_or_legacy, settings_from_client
+
+    out: list[Settings] = []
+    for client in list_clients_or_legacy():
+        if not client.schedule.enabled:
+            continue
+        out.append(settings_from_client(client, use_automation_credentials=True))
+    if out:
+        return out
+    # Fallback legado: .env global
+    settings = get_settings()
+    if settings.mensal_schedule_enabled:
+        return [settings]
+    return []
+
+
 def _scheduler_loop(stop_event: threading.Event) -> None:
     while not stop_event.is_set():
-        settings = get_settings()
-        if not settings.mensal_schedule_enabled:
+        scheduled = _iter_schedule_settings()
+        if not scheduled:
             stop_event.wait(60)
             continue
 
-        state = load_scheduler_state(settings)
-        current = period_key(settings=settings)
+        any_ran = False
+        min_wait = 3600.0
+        for settings in scheduled:
+            state = load_scheduler_state(settings)
+            current = period_key(settings=settings)
 
-        if state.period == current and state.status == "success":
+            if state.period == current and state.status == "success":
+                next_run = compute_next_run(settings)
+                wait_seconds = max(1.0, (next_run - now_in_tz(settings)).total_seconds())
+                min_wait = min(min_wait, wait_seconds)
+                continue
+
+            if is_due_now(settings):
+                run_scheduled_mensal(settings, source="scheduler")
+                any_ran = True
+                continue
+
             next_run = compute_next_run(settings)
             wait_seconds = max(1.0, (next_run - now_in_tz(settings)).total_seconds())
-            stop_event.wait(min(wait_seconds, 3600.0))
-            continue
+            min_wait = min(min_wait, wait_seconds)
 
-        if is_due_now(settings):
-            run_scheduled_mensal(settings, source="scheduler")
+        if any_ran:
             stop_event.wait(60)
-            continue
-
-        next_run = compute_next_run(settings)
-        wait_seconds = max(1.0, (next_run - now_in_tz(settings)).total_seconds())
-        stop_event.wait(min(wait_seconds, 3600.0))
+        else:
+            stop_event.wait(min(min_wait, 3600.0))
 
 
 def start_background_scheduler() -> threading.Event | None:
     global _background_stop, _background_thread
 
-    settings = get_settings()
-    if not settings.mensal_schedule_enabled:
+    scheduled = _iter_schedule_settings()
+    if not scheduled:
         return None
 
     if _background_thread and _background_thread.is_alive():
@@ -373,7 +399,14 @@ def start_background_scheduler() -> threading.Event | None:
     thread.start()
     _background_stop = stop_event
     _background_thread = thread
-    logger.info("Scheduler MENSAL iniciado (dia %s às %02d:%02d)", settings.mensal_schedule_day, settings.mensal_schedule_hour, settings.mensal_schedule_minute)
+    first = scheduled[0]
+    logger.info(
+        "Scheduler MENSAL multi-tenant iniciado (%s tenant(s); ex.: dia %s às %02d:%02d)",
+        len(scheduled),
+        first.mensal_schedule_day,
+        first.mensal_schedule_hour,
+        first.mensal_schedule_minute,
+    )
     return stop_event
 
 

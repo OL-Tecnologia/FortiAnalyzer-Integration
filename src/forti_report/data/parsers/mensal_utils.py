@@ -20,6 +20,18 @@ def filter_ranked(items: list[RankedItem], *, require_value: bool = True) -> lis
     return out
 
 
+def split_phishing_item(item: RankedItem) -> tuple[str, str]:
+    """Separa usuário e site (category ou rótulo 'usuário — site')."""
+    if (item.category or "").strip():
+        return item.label.strip(), item.category.strip()
+    text = (item.label or "").strip()
+    for sep in (" — ", " – ", " - ", " | "):
+        if sep in text:
+            left, right = text.split(sep, 1)
+            return left.strip(), right.strip()
+    return text, "—"
+
+
 def _has_metric(item: RankedItem) -> bool:
     if (item.percentage or "").strip():
         return True

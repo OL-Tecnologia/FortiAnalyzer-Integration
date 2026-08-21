@@ -6,8 +6,9 @@ Catálogo das capacidades atuais do **fortiAnalyzer**. Detalhes em documentos fi
 
 | Status | Significado |
 |--------|-------------|
-| ✅ V1 | Disponível via CLI |
-| 📋 V2 | Planejado — ver [v2-multi-cliente-api-frontend.md](v2-multi-cliente-api-frontend.md) |
+| ✅ V1 | Disponível via CLI / portal |
+| 📋 Planejado | Spec pronta — ver documento filho |
+| 📋 V2 | Planejado (legado) — ver [v2-multi-cliente-api-frontend.md](v2-multi-cliente-api-frontend.md); **spec canônica multi-tenant:** [multi-tenant-clientes-faz.md](multi-tenant-clientes-faz.md) |
 
 ---
 
@@ -22,8 +23,9 @@ Catálogo das capacidades atuais do **fortiAnalyzer**. Detalhes em documentos fi
 | Filtro por schedule MENSAL | ✅ V1 | `FAZ_REPORT_SCHEDULE` |
 | ADOM configurável por `.env` | ✅ V1 | `FAZ_ADOM` |
 | Frontend web MENSAL (CRUZ_AZUL) | ✅ V1 | [frontend-mensal-cruz-azul.md](frontend-mensal-cruz-azul.md) |
-| Login FAZ (tela + sessão, sem `.env`) | 📋 Planejado | [login-faz-sessao.md](login-faz-sessao.md) |
-| Multi-ADOM / portal N clientes | 📋 V2 | [v2-multi-cliente-api-frontend.md](v2-multi-cliente-api-frontend.md) |
+| Login FAZ (tela + sessão, sem `.env`) | ✅ V1.1 | [login-faz-sessao.md](login-faz-sessao.md) |
+| Multi-tenant (sempre N tenants; SDE=1, OL=N; Super Admin + e-mail por client) | 🚧 Parcial | [multi-tenant-clientes-faz.md](multi-tenant-clientes-faz.md) — `PORTAL_ADMIN_PASSWORD` + `/admin.html` |
+| Multi-ADOM / portal N clientes (rascunho V2) | 📋 V2 | [v2-multi-cliente-api-frontend.md](v2-multi-cliente-api-frontend.md) — ver spec canônica acima |
 
 ---
 
@@ -69,7 +71,8 @@ Catálogo das capacidades atuais do **fortiAnalyzer**. Detalhes em documentos fi
 | Seções SD-WAN, políticas, risco, sites | ✅ V1 | `unified_mensal_builder.py` |
 | Resumo Executivo (global + por dispositivo) | ✅ V1 | `pdf/sections/resumo_executivo.py` |
 | Segurança Ampliada (painel consolidado) | ✅ V1 | `pdf/sections/seguranca.py` |
-| Referência FAZ (títulos + widgets + prévia gráficos) | ✅ V1 | [decisao-conteudo-faz.md](../decisao-conteudo-faz.md), `pdf/sections/faz_conteudo.py` |
+| Cards KPI + donuts/gauge (layout executivo) | ✅ V1 | `pdf/kpi_cards.py`, `charts/plotly_charts.py` |
+| Referência FAZ (inventário — oculto no PDF cliente) | ✅ V1 | [decisao-conteudo-faz.md](../decisao-conteudo-faz.md) |
 
 ---
 
@@ -95,8 +98,12 @@ Catálogo das capacidades atuais do **fortiAnalyzer**. Detalhes em documentos fi
 
 ---
 
-## V2 — não implementado
+## Multi-tenant / V2 — não implementado
 
-Tudo relacionado a **vários clientes**, **frontend** e **API REST** está especificado apenas em:
+Spec canônica — **produto já multi-tenant** (SDE cadastra 1 tenant; OL atualiza para N; Super Admin; e-mail por tenant):
+
+**[multi-tenant-clientes-faz.md](multi-tenant-clientes-faz.md)**
+
+Rascunho anterior (API/tenant básico; complementar):
 
 **[v2-multi-cliente-api-frontend.md](v2-multi-cliente-api-frontend.md)**

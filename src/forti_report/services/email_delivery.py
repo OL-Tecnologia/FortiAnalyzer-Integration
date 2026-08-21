@@ -25,9 +25,16 @@ O relatório apresenta informações de utilização da rede, consumo de banda, 
 Em caso de dúvidas, nossa equipe permanece à disposição."""
 
 
-def format_email_subject(when: datetime | None = None) -> str:
+def format_email_subject(when: datetime | None = None, settings: Settings | None = None) -> str:
     ref = when or datetime.now()
-    return f"Cruz Azul | Relatório Mensal FortiAnalyzer – {ref.strftime('%m/%Y')}"
+    prefix = ""
+    if settings and settings.email_subject_prefix.strip():
+        prefix = settings.email_subject_prefix.strip()
+    elif settings and settings.client_display_name.strip():
+        prefix = f"{settings.client_display_name.strip()} | Relatório Mensal FortiAnalyzer"
+    else:
+        prefix = "Relatório Mensal FortiAnalyzer"
+    return f"{prefix} – {ref.strftime('%m/%Y')}"
 
 
 def _parse_recipients(value: str) -> list[str]:
@@ -127,7 +134,7 @@ def send_email(
 def send_mensal_report_email(settings: Settings, pdf_path: Path, *, when: datetime | None = None) -> None:
     send_email(
         settings,
-        subject=format_email_subject(when),
+        subject=format_email_subject(when, settings),
         body=EMAIL_BODY_TEMPLATE,
         to_addrs=_parse_recipients(settings.smtp_to),
         cc_addrs=_parse_recipients(settings.smtp_cc),
@@ -140,7 +147,8 @@ def send_failure_alert(settings: Settings, error: str, *, context: str = "") -> 
     if not alert_to:
         return
 
-    subject = "FALHA — Relatório Mensal FortiAnalyzer Cruz Azul"
+    label = settings.client_display_name or settings.faz_adom or "FortiAnalyzer"
+    subject = f"FALHA — Relatório Mensal {label}"
     body = "Falha na rotina automática de geração/envio do relatório MENSAL.\n\n"
     if context:
         body += f"Contexto: {context}\n\n"

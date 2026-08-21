@@ -1,4 +1,4 @@
-"""Seção Resumo Executivo — KPIs consolidados por dispositivo."""
+"""Seção Resumo Executivo — KPIs em cards + destaques."""
 
 from __future__ import annotations
 
@@ -6,10 +6,21 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import cm
 from reportlab.platypus import Paragraph, Spacer
 
+from forti_report.charts.plotly_charts import (
+    allowed_blocked_donut,
+    chart_to_png_bytes,
+    create_gauge,
+    parse_availability_percent,
+)
 from forti_report.data.mensal_models import MensalGeralReport
 from forti_report.data.parsers.mensal_utils import block_rate_percent, filter_ranked, parse_numeric_value
+from forti_report.pdf.chart_utils import (
+    DONUT_MAX_HEIGHT,
+    GAUGE_MAX_HEIGHT,
+    append_chart_with_gap,
+)
+from forti_report.pdf.kpi_cards import kpi_cards_table
 from forti_report.pdf.mensal_toc import section_anchor
-from forti_report.pdf.table_utils import data_table
 
 _SECTION_GAP = 0.12 * cm
 
@@ -20,6 +31,8 @@ def build_resumo_executivo_flowables(
     width: float,
     styles,
     anchor_prefix: str = "",
+    charts_enabled: bool = True,
+    chart_scope: str | None = None,
 ) -> list:
     """KPIs e destaques operacionais no início de cada dispositivo."""
     if not mensal.has_content:
@@ -29,22 +42,26 @@ def build_resumo_executivo_flowables(
     allowed = s.allowed_requests or mensal.macros.get("Web Usage Request Count", "")
     blocked = s.blocked_requests or ""
     block_pct = block_rate_percent(allowed, blocked)
+    availability = mensal.macros.get("SD-WAN Device Availability Percentage", "—")
 
-    rows = [
-        ["Indicador", "Valor"],
-        ["Requisições permitidas", allowed or "—"],
-        ["Requisições bloqueadas", blocked or "—"],
-        ["Taxa de bloqueio", block_pct or "—"],
-        ["Usuários ativos", str(s.users or mensal.macros.get("Web Usage User Count", "—"))],
-        ["Categorias monitoradas", str(s.categories or mensal.macros.get("Web Usage Category Count", "—"))],
-        ["Aplicações identificadas", str(s.applications or mensal.macros.get("Web Usage Application Count", "—"))],
+    cards = kpi_cards_table(
         [
-            "Sites maliciosos detectados",
-            str(s.malicious_sites or mensal.macros.get("web Usage Total Malicious Websites Count", "—")),
+            ("Permitidas", allowed or "—"),
+            ("Bloqueadas", blocked or "—"),
+            ("Taxa bloqueio", block_pct or "—"),
+            ("Usuários", str(s.users or mensal.macros.get("Web Usage User Count", "—"))),
+            ("Categorias", str(s.categories or mensal.macros.get("Web Usage Category Count", "—"))),
+            ("Aplicações", str(s.applications or mensal.macros.get("Web Usage Application Count", "—"))),
+            (
+                "Sites maliciosos",
+                str(s.malicious_sites or mensal.macros.get("web Usage Total Malicious Websites Count", "—")),
+            ),
+            ("Disponibilidade SD-WAN", availability or "—"),
+            ("Banda SD-WAN", mensal.macros.get("SD-WAN Total Bandwidth", "—")),
         ],
-        ["Disponibilidade SD-WAN", mensal.macros.get("SD-WAN Device Availability Percentage", "—")],
-        ["Consumo SD-WAN (total)", mensal.macros.get("SD-WAN Total Bandwidth", "—")],
-    ]
+        width,
+        cols=3,
+    )
 
     highlights = _build_highlights(mensal)
     body = ParagraphStyle(
@@ -60,19 +77,45 @@ def build_resumo_executivo_flowables(
         Spacer(1, _SECTION_GAP),
         Paragraph("Resumo Executivo", styles["Heading2"]),
         Paragraph(
-            "Visão sintética dos indicadores do período para apoio à gestão e tomada de decisão.",
+            "Indicadores do período em um só olhar. Os destaques abaixo apontam onde investigar primeiro.",
             body,
         ),
-        data_table(
-            rows,
-            width,
-            min_widths=[6.0 * cm, 4.5 * cm],
-            font_size=8,
-            header_font_size=9,
-            nowrap_cols=frozenset({1}),
-            stretch_col=0,
-        ),
     ]
+    if cards:
+        flow.append(Spacer(1, 0.1 * cm))
+        flow.append(cards)
+
+    if charts_enabled:
+        a_num = parse_numeric_value(allowed or "")
+        b_num = parse_numeric_value(blocked or "")
+        fig = allowed_blocked_donut(a_num, b_num)
+        if fig:
+            try:
+                png = chart_to_png_bytes(
+                    fig,
+                    cache_key=f"kpi-donut:{mensal.device_name}",
+                    cache_scope=chart_scope,
+                )
+                append_chart_with_gap(flow, png, max_width=width, max_height=DONUT_MAX_HEIGHT)
+            except Exception:
+                pass
+
+        avail = parse_availability_percent(availability if availability != "—" else None)
+        if avail is not None:
+            gauge = create_gauge(avail, title="Disponibilidade SD-WAN")
+            if gauge:
+                try:
+                    png = chart_to_png_bytes(
+                        gauge,
+                        cache_key=f"kpi-gauge:{mensal.device_name}:{avail}",
+                        cache_scope=chart_scope,
+                    )
+                    append_chart_with_gap(
+                        flow, png, max_width=width * 0.75, max_height=GAUGE_MAX_HEIGHT
+                    )
+                except Exception:
+                    pass
+
     if highlights:
         flow.append(Spacer(1, 0.15 * cm))
         flow.append(Paragraph("<b>Destaques:</b>", body))
@@ -86,6 +129,7 @@ def build_global_resumo_executivo_flowables(
     *,
     width: float,
     styles,
+    charts_enabled: bool = True,
 ) -> list:
     """Resumo executivo agregado de todos os dispositivos Cruz Azul."""
     total = 0
@@ -123,46 +167,48 @@ def build_global_resumo_executivo_flowables(
                     malicious_sum += int(mn)
 
     block_pct = block_rate_percent(str(int(allowed_sum)), str(int(blocked_sum))) if has_metrics else "—"
+    offline = max(total - online, 0)
 
-    rows = [
-        ["Indicador", "Valor"],
-        ["Dispositivos no escopo", str(total)],
-        ["Dispositivos online", str(online)],
-        ["Com relatório MENSAL vinculado", str(with_report)],
-        ["Com dados parseados", str(with_data)],
+    card_items = [
+        ("Dispositivos", str(total)),
+        ("Online", str(online)),
+        ("Offline", str(offline)),
+        ("Com relatório", str(with_report)),
+        ("Com dados", str(with_data)),
     ]
     if has_metrics:
-        rows.extend([
-            ["Requisições permitidas (soma)", f"{int(allowed_sum):,}".replace(",", ".")],
-            ["Requisições bloqueadas (soma)", f"{int(blocked_sum):,}".replace(",", ".")],
-            ["Taxa de bloqueio (agregada)", block_pct],
-            ["Sites maliciosos (soma)", str(malicious_sum)],
-        ])
+        card_items.extend(
+            [
+                ("Permitidas (soma)", f"{int(allowed_sum):,}".replace(",", ".")),
+                ("Bloqueadas (soma)", f"{int(blocked_sum):,}".replace(",", ".")),
+                ("Taxa bloqueio", block_pct),
+                ("Sites maliciosos", str(malicious_sum)),
+            ]
+        )
 
+    # Abertura global: só cards/tabela — sem donuts (espaço e leitura).
+    _ = charts_enabled
+    cards = kpi_cards_table(card_items, width, cols=3)
     body = ParagraphStyle(
         "GlobalExecBody",
         parent=styles["Normal"],
         fontSize=9,
         leading=12,
     )
-    return [
+    flow: list = [
         Spacer(1, _SECTION_GAP),
         Paragraph("Resumo Executivo — Visão Geral", styles["Heading2"]),
         Paragraph(
             "Consolidado de todas as unidades regionais e dispositivos incluídos neste relatório.",
             body,
         ),
-        data_table(
-            rows,
-            width,
-            min_widths=[6.5 * cm, 4.0 * cm],
-            font_size=8,
-            header_font_size=9,
-            nowrap_cols=frozenset({1}),
-            stretch_col=0,
-        ),
-        Spacer(1, _SECTION_GAP),
     ]
+    if cards:
+        flow.append(Spacer(1, 0.1 * cm))
+        flow.append(cards)
+
+    flow.append(Spacer(1, _SECTION_GAP))
+    return flow
 
 
 def _build_highlights(mensal: MensalGeralReport) -> list[str]:

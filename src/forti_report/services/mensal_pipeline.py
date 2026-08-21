@@ -90,7 +90,12 @@ class MensalReportPipeline:
         from forti_report.data.hierarchy import build_regional_hierarchy
 
         out = HierarchyImportResult()
-        out.regional_units = build_regional_hierarchy(devices, reports_map)
+        out.regional_units = build_regional_hierarchy(
+            devices,
+            reports_map,
+            device_pattern=self.settings.device_pattern or None,
+            region_labels=self.settings.region_labels or None,
+        )
         out.import_result = import_result
         prog.emit(phase="hierarchy", step="hierarchy", message="Hierarquia pronta.", phase_percent=100)
         return out
@@ -143,7 +148,12 @@ class MensalReportPipeline:
         from forti_report.data.hierarchy import build_regional_hierarchy
 
         out = HierarchyImportResult()
-        out.regional_units = build_regional_hierarchy(devices, reports_map)
+        out.regional_units = build_regional_hierarchy(
+            devices,
+            reports_map,
+            device_pattern=self.settings.device_pattern or None,
+            region_labels=self.settings.region_labels or None,
+        )
         return out if out.regional_units else None
 
     def generate_unified_pdf(

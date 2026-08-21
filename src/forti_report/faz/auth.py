@@ -34,6 +34,7 @@ class FazPortalSession:
     faz_rpc_session: str
     adom: str
     expires_at: float
+    client_slug: str = ""
     created_at: float = field(default_factory=time.time)
 
     @property
@@ -73,6 +74,7 @@ class FazSessionStore:
         faz_rpc_session: str,
         adom: str,
         ttl_seconds: int,
+        client_slug: str = "",
     ) -> FazPortalSession:
         session_id = secrets.token_urlsafe(32)
         record = FazPortalSession(
@@ -81,6 +83,7 @@ class FazSessionStore:
             faz_password=faz_password,
             faz_rpc_session=faz_rpc_session,
             adom=adom,
+            client_slug=client_slug,
             expires_at=time.time() + ttl_seconds,
         )
         with self._lock:
@@ -128,6 +131,7 @@ def authenticate_faz(
     settings: Settings | None = None,
     *,
     rate_limit_key: str | None = None,
+    client_slug: str = "",
 ) -> FazPortalSession:
     """Valida credenciais no FAZ e cria sessão do portal."""
     settings = settings or get_settings()
@@ -160,12 +164,24 @@ def authenticate_faz(
         faz_rpc_session=faz_rpc_session,
         adom=settings.faz_adom,
         ttl_seconds=ttl_seconds,
+        client_slug=client_slug or settings.client_slug,
     )
 
 
 def settings_for_session(session: FazPortalSession, base: Settings | None = None) -> Settings:
     """Settings com credenciais da sessão (para pipeline / jobs)."""
     base = base or get_settings()
+    if session.client_slug:
+        from forti_report.clients import get_client, settings_from_client
+
+        client = get_client(session.client_slug, base, include_disabled=True)
+        if client:
+            return settings_from_client(
+                client,
+                base,
+                faz_user=session.faz_user,
+                faz_password=session.faz_password,
+            )
     return base.model_copy(
         update={
             "faz_user": session.faz_user,

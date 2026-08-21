@@ -23,9 +23,10 @@ Um único PDF com **6 unidades regionais** e **11 dispositivos** do ADOM, consol
 
 ## Seções por dispositivo (exemplos)
 
-- **Resumo Executivo** — KPIs e destaques do período  
-- **Referência FAZ** — títulos de seção, widgets e prévia textual dos gráficos exportados  
-- **Segurança Ampliada** — bloqueios, risco, phishing e categorias bloqueadas  
+- **Resumo Executivo** — cards KPI, donut permitidas/bloqueadas, gauge SD-WAN  
+- **Segurança Ampliada** — cards KPI + barras de risco/bloqueio  
+- Gráficos executivos (barras H, donuts) nas seções de usuários, categorias, sites, SD-WAN e políticas  
+
 - Resumo de utilização web  
 - Timeline consumo de banda  
 - Top usuários (permitidos / bloqueados)  

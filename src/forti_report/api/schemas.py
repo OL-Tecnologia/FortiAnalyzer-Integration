@@ -1,11 +1,14 @@
 """Schemas da API web."""
 
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
 class FazLoginRequest(BaseModel):
     user: str = Field(..., min_length=1, max_length=128)
     password: str = Field(..., min_length=1, max_length=256)
+    client_slug: str | None = Field(None, max_length=64)
 
 
 class AuthMeResponse(BaseModel):
@@ -13,6 +16,56 @@ class AuthMeResponse(BaseModel):
     adom: str
     user: str | None = None
     expires_at: str | None = None
+    client_slug: str | None = None
+    display_name: str | None = None
+
+
+class AdminLoginRequest(BaseModel):
+    password: str = Field(..., min_length=1, max_length=256)
+
+
+class AdminMeResponse(BaseModel):
+    authenticated: bool
+    configured: bool
+    expires_at: str | None = None
+
+
+class ClientPublicResponse(BaseModel):
+    slug: str
+    display_name: str
+    adom: str
+    enabled: bool = True
+
+
+class ClientConnectionTestRequest(BaseModel):
+    faz_user: str | None = Field(None, max_length=128)
+    faz_password: str | None = Field(None, max_length=256)
+    # Permite testar payload ainda não salvo
+    draft: dict[str, Any] | None = None
+
+
+class ClientConnectionTestResponse(BaseModel):
+    ok: bool
+    detail: str
+    jsonrpc_url: str | None = None
+    adom: str | None = None
+
+
+class ClientUpsertRequest(BaseModel):
+    """Body completo ou parcial para criar/atualizar tenant."""
+
+    slug: str | None = Field(None, max_length=64)
+    display_name: str | None = Field(None, max_length=128)
+    enabled: bool | None = None
+    faz: dict[str, Any] | None = None
+    automation: dict[str, Any] | None = None
+    hierarchy: dict[str, Any] | None = None
+    pdf: dict[str, Any] | None = None
+    output: dict[str, Any] | None = None
+    schedule: dict[str, Any] | None = None
+    email: dict[str, Any] | None = None
+    automation_faz_password: str | None = Field(None, max_length=256)
+    require_connection_ok: bool = True
 
 
 class GenerateMensalRequest(BaseModel):

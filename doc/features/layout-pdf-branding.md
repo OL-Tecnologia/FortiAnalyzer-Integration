@@ -4,17 +4,17 @@
 
 ## Capa
 
-- Imagens full width: `cabecalho_capa.png`, `rodape_capa.png`  
-- Texto centralizado: `RELATÓRIO MENSAL  GERAL`, ADOM, contagem unidades regionais/dispositivos, mês/ano  
-- Logo cliente: `logo_cruz-azul.png` (canto inferior direito do bloco central)  
+- Faixa superior: `cabecalho_capa.png` — **padrão OL fixo** (não configurável por cliente)  
+- Miolo: texto (`RELATÓRIO MENSAL GERAL`, ADOM, unidades/dispositivos FAZ, mês/ano) + **logo do cliente** (upload por tenant)  
+- Faixa inferior: `rodape_capa.png` — **padrão OL fixo** (não configurável por cliente)  
 
-**Módulo:** `pdf/cover_page.py`
+**Módulo:** `pdf/cover_page.py` — prévia na admin em `/admin.html`
 
-## Páginas internas
+## Páginas internas (corpo)
 
 - Faixa `cabecalho-interno.png` (altura proporcional à largura A4)  
 - Logo OL: `logo-horizontal-gray.svg` rasterizado PNG transparente, ~4,25 cm largura  
-- Rodapé: linha `#9B1C1C`, texto `RELATORIO MENSAL GERAL — {ADOM}`, `Página X de Y`  
+- Rodapé tipográfico: linha `#9B1C1C`, texto `RELATORIO MENSAL GERAL — {ADOM}`, `Página X de Y`  
 
 **Módulo:** `pdf/internal_page.py`
 

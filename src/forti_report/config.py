@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from forti_report.runtime_paths import assets_dir, project_root
@@ -15,7 +15,30 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    faz_host: str = "172.16.8.39"
+    # --- Super Admin do portal (multi-tenant) ---
+    # Defina no .env: PORTAL_ADMIN_PASSWORD=sua_senha_forte
+    portal_admin_password: str = ""
+    portal_admin_cookie_name: str = "portal_admin_session"
+    portal_admin_session_ttl_minutes: int = 60
+
+    @field_validator("portal_admin_password", mode="before")
+    @classmethod
+    def _strip_admin_password(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip().strip('"').strip("'")
+        return value
+    clients_dir: Path = Field(default=PROJECT_ROOT / "configs" / "clients")
+    default_client_slug: str = ""
+
+    # Tenant ativo (preenchido via settings_from_client)
+    client_slug: str = ""
+    client_display_name: str = ""
+    cover_title: str = "RELATÓRIO MENSAL  GERAL"
+    device_pattern: str = ""
+    region_labels: dict[str, str] = Field(default_factory=dict)
+    email_subject_prefix: str = ""
+
+    faz_host: str = ""
     faz_port: int = 8090
     faz_use_ssl: bool = True
     faz_verify_ssl: bool = False
@@ -24,7 +47,7 @@ class Settings(BaseSettings):
     faz_session_ttl_minutes: int = 60
     faz_session_cookie_name: str = "faz_portal_session"
     faz_session_cookie_secure: bool = False
-    faz_adom: str = "CRUZ_AZUL"
+    faz_adom: str = ""
     faz_report_schedule: str = ""
     faz_wan_report_schedule: str = "SEMANAL- RELATÓRIO TRÁFEGO WAN"
     faz_time_period: str = "last-30-days"
@@ -41,7 +64,12 @@ class Settings(BaseSettings):
     pdf_cover_image: Path = Field(default_factory=lambda: assets_dir() / "cover.png")
     pdf_cover_header_image: Path = Field(default_factory=lambda: assets_dir() / "img" / "cabecalho_capa.png")
     pdf_cover_footer_image: Path = Field(default_factory=lambda: assets_dir() / "img" / "rodape_capa.png")
-    pdf_cover_logo_image: Path = Field(default_factory=lambda: assets_dir() / "img" / "logo_cruz-azul.png")
+    # Logo do cliente vem do tenant (admin); padrão vazio evita embutir cliente na dist
+    pdf_cover_logo_image: Path = Field(default_factory=lambda: assets_dir() / "img" / "logo_cliente.png")
+    pdf_cover_logo_width_cm: float = 2.1
+    pdf_cover_logo_align: str = "right"  # left | center | right
+    pdf_cover_logo_offset_x_cm: float = 0.0
+    pdf_cover_logo_offset_y_cm: float = 0.35
     pdf_internal_header_image: Path = Field(
         default_factory=lambda: assets_dir() / "img" / "cabecalho-interno.png"
     )
@@ -74,15 +102,21 @@ class Settings(BaseSettings):
     smtp_user: str = ""
     smtp_password: str = ""
     smtp_timeout: int = 60
-    smtp_from: str = "notificacao@onelinea.com.br"
-    smtp_to: str = "leandro.souza@cruzazulsp.com.br"
+    smtp_from: str = ""
+    smtp_to: str = ""
     smtp_cc: str = ""
-    smtp_alert_to: str = "roliveira@onelinea.com.br"
+    smtp_alert_to: str = ""
 
     @property
     def jsonrpc_url(self) -> str:
-        scheme = "https" if self.faz_use_ssl else "http"
-        return f"{scheme}://{self.faz_host}:{self.faz_port}/jsonrpc"
+        from forti_report.faz.endpoint import parse_faz_endpoint
+
+        host, port_from_host, ssl_from_host = parse_faz_endpoint(self.faz_host)
+        host = host or (self.faz_host or "").strip()
+        port = port_from_host if port_from_host is not None else self.faz_port
+        use_ssl = ssl_from_host if ssl_from_host is not None else self.faz_use_ssl
+        scheme = "https" if use_ssl else "http"
+        return f"{scheme}://{host}:{port}/jsonrpc"
 
 
 def get_settings() -> Settings:

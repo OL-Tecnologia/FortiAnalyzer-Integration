@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import io
 from collections.abc import Callable
-from datetime import datetime
 from pathlib import Path
 
 from reportlab.lib import colors
@@ -13,7 +11,6 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.platypus import (
     BaseDocTemplate,
-    CondPageBreak,
     Frame,
     Image,
     KeepTogether,
@@ -21,14 +18,18 @@ from reportlab.platypus import (
     PageTemplate,
     Paragraph,
     Spacer,
-    Table,
     NextPageTemplate,
 )
 
 from forti_report.charts.plotly_charts import (
+    allowed_blocked_donut,
     bandwidth_timeline_chart,
     category_pie_chart,
     chart_to_png_bytes,
+    create_bar_chart,
+    create_donut_chart,
+    create_gauge,
+    parse_availability_percent,
     ranked_horizontal_chart,
     top_users_bar_chart,
 )
@@ -36,10 +37,24 @@ from forti_report.services.mensal_cache import chart_scope_for_unit
 from forti_report.services.progress import clamp_percent
 from forti_report.config import Settings, get_settings
 from forti_report.data.hierarchy import AntennaInfo, RegionalUnit
-from forti_report.data.mensal_models import MensalGeralReport, PolicyDetailRow
-from forti_report.data.models import UnitReport
-from forti_report.data.parsers.mensal_utils import filter_ranked, format_bandwidth, ranked_chart_values, timeline_has_signal
+from forti_report.data.mensal_models import MensalGeralReport
+from forti_report.data.parsers.mensal_utils import (
+    filter_ranked,
+    format_bandwidth,
+    parse_numeric_value,
+    pie_values_from_items,
+    ranked_chart_values,
+    timeline_has_signal,
+)
 from forti_report.data.wan_models import RankedItem
+from forti_report.pdf.chart_utils import (
+    BAR_MAX_HEIGHT,
+    CHART_GAP,
+    DONUT_MAX_HEIGHT,
+    GAUGE_MAX_HEIGHT,
+    TIMELINE_MAX_HEIGHT,
+    append_chart_with_gap,
+)
 from forti_report.pdf.mensal_toc import (
     TocEntryMarker,
     create_mensal_table_of_contents,
@@ -61,19 +76,20 @@ from forti_report.pdf.internal_page import (
     internal_header_height,
     prewarm_header_logo,
 )
+from forti_report.pdf.kpi_cards import kpi_cards_table
 from forti_report.pdf.page_layout import apply_lateral_margins
 from forti_report.pdf.table_utils import data_table, ranked_table
-from forti_report.pdf.sections.faz_conteudo import build_faz_conteudo_flowables
 from forti_report.pdf.sections.resumo_executivo import (
     build_global_resumo_executivo_flowables,
     build_resumo_executivo_flowables,
 )
 from forti_report.pdf.sections.seguranca import build_seguranca_flowables
 
+_BLOCKED_COLOR = "#E63946"
+
 
 _SECTION_GAP = 0.12 * cm
 _BLOCK_GAP = 0.35 * cm  # separação visual entre blocos no mesmo fluxo
-_LOCALITY_BREAK = 3.5 * cm  # quebra de página só se faltar espaço útil
 
 
 class UnifiedMensalPdfBuilder:
@@ -163,6 +179,7 @@ class _UnifiedMensalDoc(BaseDocTemplate):
             page_num=doc.page,
             total_pages=getattr(doc, "_total_pages", doc.page) or doc.page,
             footer_h=self._footer_h,
+            display_name=(self.settings.client_display_name or "").strip(),
         )
         canvas.restoreState()
 
@@ -192,6 +209,7 @@ class _UnifiedMensalDoc(BaseDocTemplate):
                     self.regional_units,
                     width=self.width,
                     styles=getSampleStyleSheet(),
+                    charts_enabled=self.settings.pdf_mensal_charts,
                 )
             )
         )
@@ -199,10 +217,21 @@ class _UnifiedMensalDoc(BaseDocTemplate):
         for ru in self.regional_units:
             story.append(PageBreak())
             self._tick_pdf(f"Unidade regional {ru.display_name} — introdução...")
-            story.extend(self._pack_section(self._regional_intro(ru)))
-            for ant_idx, antenna in enumerate(ru.antennas):
-                if ant_idx > 0:
-                    story.append(CondPageBreak(_LOCALITY_BREAK))
+            intro = self._regional_intro(ru)
+            intro_markers = [x for x in intro if self._is_toc_flowable(x)]
+            intro_content = [x for x in intro if not self._is_toc_flowable(x)]
+            antennas = list(ru.antennas)
+            if not antennas:
+                story.extend(intro_markers + ([KeepTogether(intro_content)] if intro_content else []))
+                continue
+
+            # 1º dispositivo cola na tabela regional (evita página só com tabela + buraco).
+            first = antennas[0]
+            self._tick_pdf(f"PDF: {first.display_name} ({ru.display_name})...")
+            story.extend(intro_markers)
+            story.extend(self._antenna_detail(ru, first, glue_before=intro_content))
+            for antenna in antennas[1:]:
+                story.append(PageBreak())
                 self._tick_pdf(f"PDF: {antenna.display_name} ({ru.display_name})...")
                 story.extend(self._antenna_detail(ru, antenna))
 
@@ -227,13 +256,8 @@ class _UnifiedMensalDoc(BaseDocTemplate):
         return markers + [KeepTogether(content)]
 
     def _cover(self):
-        legacy = self._asset(self.settings.pdf_cover_image)
-        has_parts = (
-            self._asset(self.settings.pdf_cover_header_image)
-            or self._asset(self.settings.pdf_cover_footer_image)
-        )
-        if legacy and not has_parts:
-            return [Image(str(legacy), width=A4[0], height=A4[1])]
+        # Capa = texto + logo do tenant (sem cabeçalho/rodapé de imagem).
+        # Rodapé tipográfico fica nas páginas internas (internal_page.py).
         return build_mensal_cover_flowables(
             self.settings,
             adom=self.adom,
@@ -248,21 +272,27 @@ class _UnifiedMensalDoc(BaseDocTemplate):
             for ant in ru.antennas:
                 rows.append(device_table_row(ant))
         min_w = device_table_min_widths()
-        return [
+        flow: list = [
             *toc_marker(0, "RESUMO GLOBAL — UNIDADES E DISPOSITIVOS", "resumo-global"),
             Paragraph("Resumo global — Unidades e Dispositivos", styles["Heading1"]),
             Spacer(1, _SECTION_GAP),
-            data_table(
-                rows,
-                self.width,
-                min_widths=min_w,
-                font_size=7,
-                header_font_size=9,
-                nowrap_cols=frozenset({3, 4, 5, 6}),
-                stretch_col=1,
-            ),
-            Spacer(1, _SECTION_GAP),
         ]
+        # Resumo global: tabela + (cards no bloco seguinte) — sem donut.
+        flow.extend(
+            [
+                data_table(
+                    rows,
+                    self.width,
+                    min_widths=min_w,
+                    font_size=7,
+                    header_font_size=9,
+                    nowrap_cols=frozenset({3, 4, 5, 6}),
+                    stretch_col=1,
+                ),
+                Spacer(1, _SECTION_GAP),
+            ]
+        )
+        return flow
 
     def _regional_intro(self, ru: RegionalUnit):
         styles = getSampleStyleSheet()
@@ -293,63 +323,153 @@ class _UnifiedMensalDoc(BaseDocTemplate):
             Spacer(1, _SECTION_GAP),
         ]
 
-    def _antenna_detail(self, ru: RegionalUnit, antenna: AntennaInfo):
+    def _antenna_header(
+        self,
+        ru: RegionalUnit,
+        antenna: AntennaInfo,
+        *,
+        styles,
+    ) -> list:
+        """Título + metadados em texto limpo (sem caixas/cards)."""
+        rep = antenna.report
+        meta_style = ParagraphStyle(
+            "AntennaMeta",
+            parent=styles["Normal"],
+            fontSize=9,
+            leading=12,
+            textColor=colors.HexColor("#334455"),
+            spaceAfter=1,
+        )
+        header: list = [
+            Spacer(1, 0.18 * cm),
+            Paragraph(
+                f"{antenna.display_name} — {ru.display_name}",
+                ParagraphStyle("H", parent=styles["Heading1"], textColor=colors.HexColor("#003366")),
+            ),
+            Paragraph(f"<b>Dispositivo:</b> {antenna.device_name}", meta_style),
+        ]
+        if antenna.ip:
+            header.append(Paragraph(f"<b>IP:</b> {antenna.ip}", meta_style))
+        if antenna.platform:
+            header.append(Paragraph(f"<b>Plataforma:</b> {antenna.platform}", meta_style))
+        if rep and rep.report_title:
+            header.append(Paragraph(f"<b>Schedule:</b> {rep.report_title}", meta_style))
+        if rep and rep.period_start and rep.period_end:
+            header.append(
+                Paragraph(
+                    f"<b>Período:</b> {rep.period_start:%d/%m/%Y} — {rep.period_end:%d/%m/%Y}",
+                    meta_style,
+                )
+            )
+        header.append(Spacer(1, 0.1 * cm))
+        return header
+
+    def _split_resumo_cards_and_charts(self, exec_block: list) -> tuple[list, list, list]:
+        """Separa marcadores TOC, parte textual/cards e gráficos do resumo executivo."""
+        markers = [x for x in exec_block if self._is_toc_flowable(x)]
+        content = [x for x in exec_block if not self._is_toc_flowable(x)]
+        cards_part: list = []
+        charts_part: list = []
+        saw_chart = False
+        for item in content:
+            if isinstance(item, Image):
+                saw_chart = True
+            if saw_chart:
+                charts_part.append(item)
+            else:
+                cards_part.append(item)
+        return markers, cards_part, charts_part
+
+    def _antenna_detail(
+        self,
+        ru: RegionalUnit,
+        antenna: AntennaInfo,
+        *,
+        glue_before: list | None = None,
+    ):
         styles = getSampleStyleSheet()
         body = ParagraphStyle("B", parent=styles["Normal"], fontSize=10, leading=14, alignment=4)
         anchor = _antenna_anchor(ru, antenna)
         rep = antenna.report
         markers = toc_marker(1, f"{antenna.display_name} — {ru.display_name}", anchor)
-        header: list = [
-            Paragraph(
-                f"{antenna.display_name} — {ru.display_name}",
-                ParagraphStyle("H", parent=styles["Heading1"], textColor=colors.HexColor("#003366")),
-            ),
-            Paragraph(f"<b>Unidade:</b> {antenna.display_name}", styles["Normal"]),
-            Paragraph(f"<b>Dispositivo:</b> {antenna.device_name}", styles["Normal"]),
-        ]
-        if antenna.ip:
-            header.append(Paragraph(f"<b>IP:</b> {antenna.ip}", styles["Normal"]))
-        if antenna.platform:
-            header.append(Paragraph(f"<b>Plataforma:</b> {antenna.platform}", styles["Normal"]))
-        header.append(Spacer(1, 0.08 * cm))
+        header = self._antenna_header(ru, antenna, styles=styles)
+        lead = list(glue_before or []) + header
 
         if not rep:
-            header.append(Paragraph("Nenhum relatório MENSAL vinculado no período.", styles["Italic"]))
-            return markers + [KeepTogether(header)]
-
-        if rep.report_title:
-            header.append(Paragraph(f"<b>Schedule:</b> {rep.report_title}", styles["Normal"]))
-        if rep.period_start and rep.period_end:
-            header.append(
-                Paragraph(
-                    f"<b>Período:</b> {rep.period_start:%d/%m/%Y} — {rep.period_end:%d/%m/%Y}",
-                    styles["Normal"],
-                )
-            )
-        if rep.faz_tid:
-            header.append(Paragraph(f"<b>TID FAZ:</b> {rep.faz_tid}", styles["Normal"]))
-
-        flow: list = markers + [KeepTogether(header)]
+            lead.append(Paragraph("Nenhum relatório MENSAL vinculado no período.", styles["Italic"]))
+            return markers + [KeepTogether(lead)]
 
         mensal = rep.mensal
         if mensal and mensal.has_content:
             prefix = f"{anchor}-"
             self._current_chart_scope = chart_scope_for_unit(rep)
-            flow.extend(self._mensal_sections(mensal, styles, body, anchor_prefix=prefix))
-        else:
-            flow.append(Spacer(1, _SECTION_GAP))
-            note = rep.import_note or "Conteúdo detalhado indisponível."
-            flow.append(Paragraph(f"<i>{note}</i>", styles["Normal"]))
-            flow.append(Spacer(1, 0.08 * cm))
-            flow.append(
-                Paragraph(
-                    "Seções previstas neste relatório (layout MENSAL GERAL): "
-                    "Resumo Executivo, Resumo de Utilização Web, Top Usuários (permitidos/bloqueados), "
-                    "Segurança Ampliada, Categorias de Sites, Top Sites por Navegação, "
-                    "SD-WAN e Consumo de Banda.",
-                    body,
-                )
+            return self._antenna_with_mensal(
+                markers=markers,
+                lead=lead,
+                mensal=mensal,
+                styles=styles,
+                body=body,
+                anchor_prefix=prefix,
             )
+
+        flow: list = markers + [KeepTogether(lead)]
+        flow.append(Spacer(1, _SECTION_GAP))
+        note = rep.import_note or "Conteúdo detalhado indisponível."
+        flow.append(Paragraph(f"<i>{note}</i>", styles["Normal"]))
+        flow.append(Spacer(1, 0.08 * cm))
+        flow.append(
+            Paragraph(
+                "Seções previstas neste relatório (layout MENSAL GERAL): "
+                "Resumo Executivo, Resumo de Utilização Web, Top Usuários (permitidos/bloqueados), "
+                "Segurança Ampliada, Categorias de Sites, Top Sites por Navegação, "
+                "SD-WAN e Consumo de Banda.",
+                body,
+            )
+        )
+        return flow
+
+    def _antenna_with_mensal(
+        self,
+        *,
+        markers: list,
+        lead: list,
+        mensal: MensalGeralReport,
+        styles,
+        body,
+        anchor_prefix: str,
+    ) -> list:
+        """Header (+ intro regional) + cards KPI juntos; gráficos do resumo em bloco à parte."""
+        charts_on = self.settings.pdf_mensal_charts
+        chart_scope = self._current_chart_scope or None
+        exec_block = build_resumo_executivo_flowables(
+            mensal,
+            width=self.width,
+            styles=styles,
+            anchor_prefix=anchor_prefix,
+            charts_enabled=charts_on,
+            chart_scope=chart_scope,
+        )
+        exec_markers, cards_part, charts_part = self._split_resumo_cards_and_charts(exec_block)
+
+        flow: list = list(markers) + list(exec_markers)
+        # Intro regional + metadados do dispositivo ficam juntos (sem página órfã).
+        # Cards KPI vêm em seguida (bloco menor) para não estourar o KeepTogether.
+        if lead:
+            flow.append(KeepTogether(lead))
+        if cards_part:
+            flow.append(KeepTogether(cards_part))
+        if charts_part:
+            flow.append(KeepTogether(charts_part))
+
+        flow.extend(
+            self._mensal_sections(
+                mensal,
+                styles,
+                body,
+                anchor_prefix=anchor_prefix,
+                skip_resumo=True,
+            )
+        )
         return flow
 
     def _mensal_sections(
@@ -359,38 +479,37 @@ class _UnifiedMensalDoc(BaseDocTemplate):
         body,
         *,
         anchor_prefix: str = "",
+        skip_resumo: bool = False,
     ) -> list:
         flow: list = []
-        exec_block = build_resumo_executivo_flowables(
-            mensal,
-            width=self.width,
-            styles=styles,
-            anchor_prefix=anchor_prefix,
-        )
-        if exec_block:
-            flow.extend(self._pack_section(exec_block))
+        charts_on = self.settings.pdf_mensal_charts
+        chart_scope = self._current_chart_scope or None
+        if not skip_resumo:
+            exec_block = build_resumo_executivo_flowables(
+                mensal,
+                width=self.width,
+                styles=styles,
+                anchor_prefix=anchor_prefix,
+                charts_enabled=charts_on,
+                chart_scope=chart_scope,
+            )
+            if exec_block:
+                flow.extend(self._pack_section(exec_block))
 
-        faz_block = build_faz_conteudo_flowables(
-            mensal,
-            width=self.width,
-            styles=styles,
-            anchor_prefix=anchor_prefix,
-        )
-        if faz_block:
-            flow.extend(self._pack_section(faz_block))
+        # Referência FAZ (inventário) fica fora do PDF do cliente final.
 
         flow.extend([
             Spacer(1, _SECTION_GAP),
-            Paragraph("Análise Abrangente da Navegação Web da Rede", styles["Heading2"]),
+            Paragraph("Análise da Unidade — Navegação, Segurança e Banda", styles["Heading2"]),
             Paragraph(
-                "Relatório consolidado para apoio à tomada de decisão (BI) da operação Cruz Azul. "
-                "Indicadores de utilização web, risco, consumo de banda e políticas de firewall "
-                f"referentes ao dispositivo <b>{mensal.device_name}</b>.",
+                f"Dispositivo <b>{mensal.device_name}</b>. "
+                "Cada bloco traz gráfico (padrão) e tabela (valores exatos) para facilitar "
+                "acompanhamento e decisão operacional.",
                 body,
             ),
         ])
+        # Rankings: gráfico + tabela. Segurança (bloqueio/risco/phishing) só no painel dedicado.
         sections = [
-            ("resumo", self._summary_section(mensal, styles, anchor_prefix)),
             ("timeline", self._timeline_section(mensal, styles, anchor_prefix)),
             (
                 "usuarios-permitidos",
@@ -413,46 +532,28 @@ class _UnifiedMensalDoc(BaseDocTemplate):
                     "Tempo (hh:mm:ss)",
                     f"{anchor_prefix}nav-cat",
                     label_header="Categoria",
+                    show_chart=True,
+                    chart_min_items=3,
+                    include_table=True,
                 ),
             ),
             ("categorias-sites", None),
             ("seguranca", None),
-            (
-                "bloqueio-resumo",
-                self._ranked_section(
-                    mensal.blocked_usage_summary,
-                    styles,
-                    "Uso da Web — Usuários e Categorias Mais Bloqueados",
-                    "Requisições",
-                    f"{anchor_prefix}bloq-cat",
-                    label_header="Usuário",
-                    pct_col=True,
-                    category_col=True,
-                    chart_min_items=5,
-                ),
-            ),
-            ("risco", self._risk_section(mensal, styles, anchor_prefix)),
-            (
-                "phishing",
-                self._ranked_section(
-                    mensal.phishing_victims,
-                    styles,
-                    "Vítimas de Sites de Phishing",
-                    "Ocorrências",
-                    f"{anchor_prefix}phishing",
-                    label_header="Usuário / Site",
-                    pct_col=True,
-                ),
-            ),
             (
                 "web-apps",
                 self._ranked_section(
                     mensal.top_web_apps,
                     styles,
                     "Principais Aplicativos Web por Largura de Banda",
-                    "Banda",
+                    "Sessões / Banda",
                     f"{anchor_prefix}web-apps",
                     label_header="Aplicação",
+                    category_col=True,
+                    pct_col=True,
+                    show_chart=True,
+                    chart_min_items=3,
+                    prefer_donut=True,
+                    include_table=True,
                 ),
             ),
             ("sdwan", None),
@@ -465,6 +566,10 @@ class _UnifiedMensalDoc(BaseDocTemplate):
                     "Banda",
                     f"{anchor_prefix}banda-u",
                     label_header="Usuário",
+                    show_chart=True,
+                    chart_min_items=3,
+                    max_chart_items=10,
+                    include_table=True,
                 ),
             ),
             (
@@ -476,6 +581,10 @@ class _UnifiedMensalDoc(BaseDocTemplate):
                     "Banda",
                     f"{anchor_prefix}banda-top",
                     label_header="Usuário",
+                    show_chart=True,
+                    chart_min_items=3,
+                    max_chart_items=10,
+                    include_table=True,
                 ),
             ),
             (
@@ -487,6 +596,10 @@ class _UnifiedMensalDoc(BaseDocTemplate):
                     "Bytes",
                     f"{anchor_prefix}pol-bw",
                     label_header="Política",
+                    show_chart=True,
+                    chart_min_items=3,
+                    max_chart_items=10,
+                    include_table=True,
                 ),
             ),
             (
@@ -498,6 +611,10 @@ class _UnifiedMensalDoc(BaseDocTemplate):
                     "Sessões",
                     f"{anchor_prefix}pol-sess",
                     label_header="Política",
+                    show_chart=True,
+                    chart_min_items=3,
+                    max_chart_items=10,
+                    include_table=True,
                 ),
             ),
             ("pol-detalhes", self._policy_details_section(mensal, styles, anchor_prefix)),
@@ -511,6 +628,8 @@ class _UnifiedMensalDoc(BaseDocTemplate):
                     width=self.width,
                     styles=styles,
                     anchor_prefix=anchor_prefix,
+                    charts_enabled=charts_on,
+                    chart_scope=chart_scope,
                 )
                 if sec:
                     flow.extend(self._pack_section(sec))
@@ -524,32 +643,49 @@ class _UnifiedMensalDoc(BaseDocTemplate):
         self, mensal: MensalGeralReport, styles, anchor_prefix: str
     ) -> list:
         s = mensal.summary
-        rows = [
-            ["Métrica", "Valor"],
-            ["Requisições permitidas", s.allowed_requests or "—"],
-            ["Requisições bloqueadas", s.blocked_requests or "—"],
-            ["Total requisições (macro)", mensal.macros.get("Web Usage Request Count", s.total_requests or "—")],
-            ["Usuários (macro)", str(s.users or mensal.macros.get("Web Usage User Count", "—"))],
-            ["Categorias (macro)", str(s.categories or mensal.macros.get("Web Usage Category Count", "—"))],
-            ["Aplicações (macro)", str(s.applications or mensal.macros.get("Web Usage Application Count", "—"))],
-            ["Sites maliciosos", str(s.malicious_sites or mensal.macros.get("web Usage Total Malicious Websites Count", "—"))],
-            ["SD-WAN disponibilidade", mensal.macros.get("SD-WAN Device Availability Percentage", "—")],
-            ["SD-WAN banda total", mensal.macros.get("SD-WAN Total Bandwidth", "—")],
-        ]
+        availability = mensal.macros.get("SD-WAN Device Availability Percentage", "—")
+        cards = kpi_cards_table(
+            [
+                ("Permitidas", s.allowed_requests or "—"),
+                ("Bloqueadas", s.blocked_requests or "—"),
+                ("Usuários", str(s.users or mensal.macros.get("Web Usage User Count", "—"))),
+                ("Categorias", str(s.categories or mensal.macros.get("Web Usage Category Count", "—"))),
+                ("Aplicações", str(s.applications or mensal.macros.get("Web Usage Application Count", "—"))),
+                (
+                    "Sites maliciosos",
+                    str(s.malicious_sites or mensal.macros.get("web Usage Total Malicious Websites Count", "—")),
+                ),
+                ("Disponibilidade", availability or "—"),
+                ("Banda SD-WAN", mensal.macros.get("SD-WAN Total Bandwidth", "—")),
+            ],
+            self.width,
+            cols=4,
+        )
         flow: list = [
             *section_anchor(f"{anchor_prefix}resumo"),
             Spacer(1, _SECTION_GAP),
             Paragraph("RESUMO DE UTILIZAÇÃO WEB", styles["Heading2"]),
-            data_table(
-                rows,
-                self.width,
-                min_widths=[5.5 * cm, 4.0 * cm],
-                font_size=8,
-                header_font_size=9,
-                nowrap_cols=frozenset({1}),
-                stretch_col=0,
-            ),
         ]
+        if cards:
+            flow.append(Spacer(1, 0.08 * cm))
+            flow.append(cards)
+
+        a_num = parse_numeric_value(s.allowed_requests or "")
+        b_num = parse_numeric_value(s.blocked_requests or "")
+        self._append_chart(
+            flow,
+            allowed_blocked_donut(a_num, b_num),
+            max_height=DONUT_MAX_HEIGHT,
+            cache_key=f"summary-donut:{mensal.device_name}",
+        )
+        avail = parse_availability_percent(availability if availability != "—" else None)
+        if avail is not None:
+            self._append_chart(
+                flow,
+                create_gauge(avail, title="Disponibilidade SD-WAN"),
+                max_height=GAUGE_MAX_HEIGHT,
+                cache_key=f"summary-gauge:{mensal.device_name}:{avail}",
+            )
         return flow
 
     def _timeline_section(
@@ -575,7 +711,9 @@ class _UnifiedMensalDoc(BaseDocTemplate):
                     cache_key=f"timeline-v3:{mensal.device_name}",
                     cache_scope=self._current_chart_scope or None,
                 )
-                flow.append(embed_chart(png, max_width=16 * cm, max_height=8.5 * cm))
+                append_chart_with_gap(
+                    flow, png, max_width=16 * cm, max_height=TIMELINE_MAX_HEIGHT
+                )
         except Exception:
             pass
         return flow
@@ -585,9 +723,10 @@ class _UnifiedMensalDoc(BaseDocTemplate):
         flow: list,
         fig,
         *,
-        max_height: float = 7 * cm,
+        max_height: float = BAR_MAX_HEIGHT,
         cache_key: str | None = None,
-        gap_before: float = 0.08,
+        gap_before: float | None = None,
+        gap_after: float | None = None,
     ) -> None:
         if not self.settings.pdf_mensal_charts:
             return
@@ -599,16 +738,21 @@ class _UnifiedMensalDoc(BaseDocTemplate):
                 cache_key=cache_key,
                 cache_scope=self._current_chart_scope or None,
             )
-            if gap_before > 0:
-                flow.append(Spacer(1, gap_before * cm))
-            flow.append(embed_chart(png, max_width=16 * cm, max_height=max_height))
+            append_chart_with_gap(
+                flow,
+                png,
+                max_width=16 * cm,
+                max_height=max_height,
+                gap_before=gap_before if gap_before is not None else CHART_GAP,
+                gap_after=gap_after if gap_after is not None else CHART_GAP,
+            )
         except Exception:
             pass
 
     def _categories_and_sites_sections(
         self, mensal: MensalGeralReport, styles, anchor_prefix: str
     ) -> list:
-        """Categorias (tabela) → Top 20 Sites (tabela) → rosca, sem espaço entre tabela e gráfico."""
+        """Categorias e sites: gráfico + tabela (categoria/tempo ficam legíveis)."""
         flow: list = []
         tight_h2 = ParagraphStyle(
             "Heading2Tight",
@@ -618,76 +762,92 @@ class _UnifiedMensalDoc(BaseDocTemplate):
         )
         cat_items = filter_ranked(mensal.top_categories)
         if cat_items:
-            flow.extend(
-                self._pack_section([
-                    *section_anchor(f"{anchor_prefix}categorias"),
-                    Spacer(1, _SECTION_GAP),
-                    Paragraph(
-                        "360 Security — Principais Categorias de Web Visitadas",
-                        styles["Heading2"],
-                    ),
-                    ranked_table(
-                        cat_items[:30],
-                        self.width,
-                        label_header="Categoria",
-                        value_header="Contagem",
-                        pct_col=True,
-                    ),
-                ])
+            cat_block: list = [
+                *section_anchor(f"{anchor_prefix}categorias"),
+                Spacer(1, _SECTION_GAP),
+                Paragraph(
+                    "360 Security — Principais Categorias de Web Visitadas",
+                    styles["Heading2"],
+                ),
+                Paragraph(
+                    "Distribuição do tráfego web por categoria — gráfico para padrão, tabela para volume/%.",
+                    styles["Normal"],
+                ),
+            ]
+            self._append_chart(
+                cat_block,
+                create_bar_chart(
+                    cat_items,
+                    title="Categorias web mais visitadas",
+                    value_label="Contagem",
+                    max_items=12,
+                ),
+                max_height=BAR_MAX_HEIGHT,
+                cache_key=f"categories-bar:{anchor_prefix}",
             )
+            self._append_chart(
+                cat_block,
+                category_pie_chart(cat_items, title="Distribuição de categorias"),
+                max_height=DONUT_MAX_HEIGHT,
+                cache_key=f"categories:{anchor_prefix}",
+            )
+            cat_block.append(
+                ranked_table(
+                    cat_items[:12],
+                    self.width,
+                    label_header="Categoria",
+                    value_header="Contagem",
+                    pct_col=True,
+                )
+            )
+            flow.extend(self._pack_section(cat_block))
 
         site_items = filter_ranked(mensal.top_sites_by_browsing)
         if site_items:
+            top_sites = site_items[:20]
+            chart_sites = top_sites[:12]
+            site_block: list = [
+                *section_anchor(f"{anchor_prefix}top-sites"),
+                Paragraph("Top 20 Sites por Tempo de Navegação", tight_h2),
+                Paragraph(
+                    "Sites que mais consomem tempo de navegação — use a tabela para categoria e duração exata.",
+                    styles["Normal"],
+                ),
+            ]
+            labels, _ = ranked_chart_values(chart_sites, max_items=12)
+            if labels:
+                self._append_chart(
+                    site_block,
+                    ranked_horizontal_chart(
+                        chart_sites,
+                        title="Top sites — tempo de navegação",
+                        value_label="Minutos",
+                        max_items=12,
+                    ),
+                    max_height=BAR_MAX_HEIGHT,
+                    cache_key=f"sites-v2:{anchor_prefix}",
+                )
             rows = [["#", "Site", "Categoria", "Tempo"]]
-            for site in site_items:
+            for site in top_sites:
                 rows.append([
                     str(site.rank),
                     site.label,
                     site.category or "—",
                     site.value or "—",
                 ])
-            flow.extend(
-                self._pack_section([
-                    *section_anchor(f"{anchor_prefix}top-sites"),
-                    Paragraph("Top 20 Sites por Tempo de Navegação", tight_h2),
-                    data_table(
-                        rows,
-                        self.width,
-                        min_widths=[0.8 * cm, 4.0 * cm, 3.0 * cm, 2.0 * cm],
-                        font_size=7,
-                        header_font_size=9,
-                        nowrap_cols=frozenset({0, 3}),
-                        stretch_col=1,
-                    ),
-                ])
-            )
-            if cat_items:
-                self._append_chart(
-                    flow,
-                    category_pie_chart(cat_items),
-                    max_height=6.5 * cm,
-                    cache_key=f"categories:{anchor_prefix}",
-                    gap_before=0,
+            site_block.append(
+                data_table(
+                    rows,
+                    self.width,
+                    min_widths=[0.8 * cm, 4.0 * cm, 3.0 * cm, 2.0 * cm],
+                    font_size=7,
+                    header_font_size=9,
+                    nowrap_cols=frozenset({0, 3}),
+                    stretch_col=1,
+                    allow_split=True,
                 )
-            labels, _ = ranked_chart_values(site_items, max_items=15)
-            if len(labels) >= 3:
-                self._append_chart(
-                    flow,
-                    ranked_horizontal_chart(
-                        site_items,
-                        title="Top sites — tempo de navegação (minutos)",
-                        value_label="Minutos",
-                        max_items=15,
-                    ),
-                    cache_key=f"sites:{anchor_prefix}",
-                )
-        elif cat_items:
-            self._append_chart(
-                flow,
-                category_pie_chart(cat_items),
-                max_height=6.5 * cm,
-                cache_key=f"categories:{anchor_prefix}",
             )
+            flow.extend(self._pack_section(site_block))
         return flow
 
     def _app_visibility_section(
@@ -696,6 +856,19 @@ class _UnifiedMensalDoc(BaseDocTemplate):
         items = filter_ranked(mensal.app_visibility)
         if not items:
             return []
+        flow: list = [
+            *section_anchor(f"{anchor_prefix}app-vis"),
+            Spacer(1, _SECTION_GAP),
+            Paragraph("360° Application Visibility and Control", styles["Heading2"]),
+        ]
+        labels, values = pie_values_from_items(items, max_items=10)
+        if labels:
+            self._append_chart(
+                flow,
+                create_donut_chart(labels, values, title="Visibilidade de aplicações"),
+                max_height=DONUT_MAX_HEIGHT,
+                cache_key=f"app-vis-donut:{mensal.device_name}",
+            )
         rows = [["#", "Categoria de Aplicação", "Qtd. Apps", "% do Total"]]
         for item in items:
             rows.append([
@@ -704,10 +877,7 @@ class _UnifiedMensalDoc(BaseDocTemplate):
                 item.value or "—",
                 item.percentage or "—",
             ])
-        flow: list = [
-            *section_anchor(f"{anchor_prefix}app-vis"),
-            Spacer(1, _SECTION_GAP),
-            Paragraph("360° Application Visibility and Control", styles["Heading2"]),
+        flow.append(
             data_table(
                 rows,
                 self.width,
@@ -716,20 +886,8 @@ class _UnifiedMensalDoc(BaseDocTemplate):
                 header_font_size=9,
                 nowrap_cols=frozenset({0, 2, 3}),
                 stretch_col=1,
-            ),
-        ]
-        labels, _ = ranked_chart_values(items, max_items=12)
-        if len(labels) >= 3:
-            self._append_chart(
-                flow,
-                ranked_horizontal_chart(
-                    items,
-                    title="360° Application Visibility and Control",
-                    value_label="Qtd. Apps",
-                    max_items=12,
-                ),
-                cache_key=f"app-vis:{mensal.device_name}",
             )
+        )
         return flow
 
     def _users_section(
@@ -739,43 +897,34 @@ class _UnifiedMensalDoc(BaseDocTemplate):
         if not items:
             return []
         slug = "permitidas" if "Permit" in label else "bloqueadas"
+        color = None if "Permit" in label else _BLOCKED_COLOR
         flow: list = [
             *section_anchor(f"{anchor_prefix}usuarios-{slug}"),
             Spacer(1, _SECTION_GAP),
             Paragraph(f"Top 10 Usuários por Requisições {label}", styles["Heading2"]),
-            ranked_table(
-                items,
-                self.width,
-                label_header="Usuário",
-                value_header="Requisições",
-                pct_col=True,
-            ),
         ]
         labels, _ = ranked_chart_values(items, max_items=10)
-        if len(labels) >= 4:
+        if labels:
             self._append_chart(
                 flow,
-                top_users_bar_chart(items, title=f"Top usuários — {label}"),
+                top_users_bar_chart(
+                    items,
+                    title=f"Top usuários — {label}",
+                    color=color,
+                ),
+                max_height=BAR_MAX_HEIGHT,
                 cache_key=f"users-{slug}:{anchor_prefix}",
             )
-        return flow
-
-    def _risk_section(self, mensal: MensalGeralReport, styles, anchor_prefix: str) -> list:
-        items = filter_ranked(mensal.top_risk_users)
-        if not items:
-            return []
-        return [
-            *section_anchor(f"{anchor_prefix}risco"),
-            Spacer(1, _SECTION_GAP),
-            Paragraph("Principais Usuários que Acessam Sites de Risco", styles["Heading2"]),
+        flow.append(
             ranked_table(
-                items,
+                items[:10],
                 self.width,
                 label_header="Usuário",
                 value_header="Requisições",
                 pct_col=True,
-            ),
-        ]
+            )
+        )
+        return flow
 
     def _ranked_section(
         self,
@@ -790,7 +939,12 @@ class _UnifiedMensalDoc(BaseDocTemplate):
         category_col: bool = False,
         show_chart: bool = False,
         chart_min_items: int = 5,
+        chart_color: str | None = None,
+        prefer_donut: bool = False,
+        max_chart_items: int = 12,
+        include_table: bool = True,
     ) -> list:
+        """Ranking: gráfico para leitura rápida + tabela com valores exatos."""
         items = filter_ranked(items)
         if not items:
             return []
@@ -798,23 +952,42 @@ class _UnifiedMensalDoc(BaseDocTemplate):
             *section_anchor(anchor),
             Spacer(1, _SECTION_GAP),
             Paragraph(title, styles["Heading2"]),
-            ranked_table(
-                items,
-                self.width,
-                label_header=label_header,
-                value_header=value_header,
-                pct_col=pct_col,
-                category_col=category_col,
-            ),
         ]
         if show_chart:
-            labels, _ = ranked_chart_values(items, max_items=12)
+            labels, _values = ranked_chart_values(items, max_items=max_chart_items)
             if len(labels) >= chart_min_items:
-                self._append_chart(
-                    flow,
-                    ranked_horizontal_chart(items, title=title, value_label=value_header),
-                    cache_key=f"ranked:{anchor}",
+                if prefer_donut:
+                    pie_labels, pie_values = pie_values_from_items(items, max_items=8)
+                    self._append_chart(
+                        flow,
+                        create_donut_chart(pie_labels, pie_values, title=title),
+                        max_height=DONUT_MAX_HEIGHT,
+                        cache_key=f"donut:{anchor}",
+                    )
+                else:
+                    self._append_chart(
+                        flow,
+                        create_bar_chart(
+                            items,
+                            title=title,
+                            value_label=value_header,
+                            max_items=max_chart_items,
+                            color=chart_color,
+                        ),
+                        max_height=BAR_MAX_HEIGHT,
+                        cache_key=f"ranked:{anchor}",
+                    )
+        if include_table:
+            flow.append(
+                ranked_table(
+                    items[:max_chart_items],
+                    self.width,
+                    label_header=label_header,
+                    value_header=value_header,
+                    pct_col=pct_col,
+                    category_col=category_col,
                 )
+            )
         return flow
 
     def _sdwan_full_section(
@@ -839,51 +1012,94 @@ class _UnifiedMensalDoc(BaseDocTemplate):
             Spacer(1, _SECTION_GAP),
             Paragraph("Aplicações SD-WAN e Consumo de Banda", styles["Heading2"]),
         ]
+        avail = parse_availability_percent(
+            mensal.macros.get("SD-WAN Device Availability Percentage")
+        )
+        if avail is not None:
+            self._append_chart(
+                header_block,
+                create_gauge(avail, title="Disponibilidade SD-WAN"),
+                max_height=GAUGE_MAX_HEIGHT,
+                cache_key=f"sdwan-gauge:{mensal.device_name}:{avail}",
+            )
         if apps:
-            header_block.extend([
-                Paragraph("<b>Distribuição de Tráfego por Aplicação</b>", styles["Normal"]),
+            header_block.append(
+                Paragraph("<b>Distribuição de Tráfego por Aplicação</b>", styles["Normal"])
+            )
+            pie_labels, pie_values = pie_values_from_items(apps, max_items=8)
+            self._append_chart(
+                header_block,
+                create_donut_chart(pie_labels, pie_values, title="Aplicações SD-WAN"),
+                max_height=DONUT_MAX_HEIGHT,
+                cache_key=f"sdwan-apps:{mensal.device_name}",
+            )
+            header_block.append(
                 ranked_table(
-                    apps,
+                    apps[:10],
                     self.width,
                     label_header="Aplicação",
                     value_header="Tráfego",
-                ),
-            ])
+                )
+            )
         flow.extend(self._pack_section(header_block))
 
         if dest:
-            flow.extend(
-                self._pack_section([
-                    Spacer(1, 0.08 * cm),
-                    Paragraph(
-                        "<b>Principais fontes/destinos consumidores de banda</b>",
-                        styles["Normal"],
-                    ),
-                    ranked_table(
-                        dest,
-                        self.width,
-                        label_header="Origem / Destino",
-                        value_header="Banda",
-                    ),
-                ])
+            dest_block: list = [
+                Spacer(1, 0.08 * cm),
+                Paragraph(
+                    "<b>Principais fontes/destinos consumidores de banda</b>",
+                    styles["Normal"],
+                ),
+            ]
+            self._append_chart(
+                dest_block,
+                create_bar_chart(
+                    dest,
+                    title="Fontes/destinos SD-WAN",
+                    value_label="Banda",
+                    max_items=10,
+                ),
+                max_height=BAR_MAX_HEIGHT,
+                cache_key=f"sdwan-dest:{mensal.device_name}",
             )
+            dest_block.append(
+                ranked_table(
+                    dest[:10],
+                    self.width,
+                    label_header="Origem / Destino",
+                    value_header="Banda",
+                )
+            )
+            flow.extend(self._pack_section(dest_block))
 
         if users:
-            flow.extend(
-                self._pack_section([
-                    Spacer(1, 0.08 * cm),
-                    Paragraph(
-                        "<b>Top Usuários SD-WAN por Consumo de Banda</b>",
-                        styles["Normal"],
-                    ),
-                    ranked_table(
-                        users,
-                        self.width,
-                        label_header="Usuário",
-                        value_header="Banda",
-                    ),
-                ])
+            users_block: list = [
+                Spacer(1, 0.08 * cm),
+                Paragraph(
+                    "<b>Top Usuários SD-WAN por Consumo de Banda</b>",
+                    styles["Normal"],
+                ),
+            ]
+            self._append_chart(
+                users_block,
+                create_bar_chart(
+                    users,
+                    title="Usuários SD-WAN",
+                    value_label="Banda",
+                    max_items=10,
+                ),
+                max_height=BAR_MAX_HEIGHT,
+                cache_key=f"sdwan-users:{mensal.device_name}",
             )
+            users_block.append(
+                ranked_table(
+                    users[:10],
+                    self.width,
+                    label_header="Usuário",
+                    value_header="Banda",
+                )
+            )
+            flow.extend(self._pack_section(users_block))
 
         if not apps and not dest and not users:
             flow.extend(
@@ -899,28 +1115,54 @@ class _UnifiedMensalDoc(BaseDocTemplate):
     ) -> list:
         if not mensal.policy_details:
             return []
-        rows = [["Política", "Bytes", "Sessões", "Origem", "Destino", "Último uso"]]
-        for p in mensal.policy_details:
-            rows.append([
-                p.policy_name[:40],
-                format_bandwidth(p.bytes_val) if p.bytes_val else "—",
-                p.sessions or "—",
-                p.source_interface or "—",
-                p.destination_interface or "—",
-                (p.last_used or "—")[:16],
-            ])
+        has_type = any((p.policy_type or "").strip() for p in mensal.policy_details)
+        if has_type:
+            rows = [["#", "Política", "Tipo", "Bytes", "Sessões", "Origem", "Destino", "Último uso"]]
+            for idx, p in enumerate(mensal.policy_details, start=1):
+                rows.append([
+                    str(idx),
+                    p.policy_name[:36],
+                    (p.policy_type or "—")[:12],
+                    format_bandwidth(p.bytes_val) if p.bytes_val else "—",
+                    p.sessions or "—",
+                    (p.source_interface or "—")[:22],
+                    (p.destination_interface or "—")[:22],
+                    (p.last_used or "—")[:16],
+                ])
+            min_w = [0.6 * cm, 2.6 * cm, 1.2 * cm, 1.4 * cm, 1.2 * cm, 2.0 * cm, 2.0 * cm, 1.8 * cm]
+            nowrap = frozenset({0, 2, 3, 4, 7})
+            stretch = 1
+        else:
+            rows = [["#", "Política", "Bytes", "Sessões", "Origem", "Destino", "Último uso"]]
+            for idx, p in enumerate(mensal.policy_details, start=1):
+                rows.append([
+                    str(idx),
+                    p.policy_name[:40],
+                    format_bandwidth(p.bytes_val) if p.bytes_val else "—",
+                    p.sessions or "—",
+                    p.source_interface or "—",
+                    p.destination_interface or "—",
+                    (p.last_used or "—")[:16],
+                ])
+            min_w = [0.6 * cm, 3.2 * cm, 1.5 * cm, 1.2 * cm, 2.0 * cm, 2.0 * cm, 1.8 * cm]
+            nowrap = frozenset({0, 2, 3, 6})
+            stretch = 1
         return [
             *section_anchor(f"{anchor_prefix}pol-detalhes"),
             Spacer(1, _SECTION_GAP),
             Paragraph("Principais Políticas com Detalhes por Consumo de Banda", styles["Heading2"]),
+            Paragraph(
+                "Regras com maior impacto em banda/sessão — base para ajuste de política e priorização.",
+                styles["Normal"],
+            ),
             data_table(
                 rows,
                 self.width,
-                min_widths=[3.5 * cm, 1.5 * cm, 1.2 * cm, 2.0 * cm, 2.0 * cm, 2.0 * cm],
+                min_widths=min_w,
                 font_size=6,
-                header_font_size=9,
-                nowrap_cols=frozenset({1, 2, 5}),
-                stretch_col=0,
+                header_font_size=8,
+                nowrap_cols=nowrap,
+                stretch_col=stretch,
                 allow_split=True,
             ),
         ]

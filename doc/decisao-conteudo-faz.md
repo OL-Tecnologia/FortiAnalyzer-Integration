@@ -2,7 +2,7 @@
 
 **Data:** 2026-06-08  
 **Escopo:** PDF MENSAL unificado · exports JSON/PDF FortiAnalyzer  
-**Status:** Etapas 2 e 3 **implementadas** nesta entrega
+**Status:** Etapas 2 e 3 **implementadas** — inventário FAZ permanece no código; a seção **não é mais renderizada** no PDF do cliente (modernização executiva)
 
 ---
 

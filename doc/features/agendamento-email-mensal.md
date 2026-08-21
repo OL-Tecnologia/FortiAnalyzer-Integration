@@ -26,12 +26,10 @@ Ambos usam a mesma rotina (`run_scheduled_mensal`). A **idempotência** (`output
 
 ## E-mail
 
-| Campo | Padrão |
-|-------|--------|
-| De | `notificacao@onelinea.com.br` |
-| Para | `leandro.souza@cruzazulsp.com.br` |
-| Alerta | `roliveira@onelinea.com.br` |
-| Assunto | `Cruz Azul \| Relatório Mensal FortiAnalyzer – {MM/yyyy}` |
+| Campo | Onde configurar |
+|-------|-----------------|
+| De / Para / Alerta | `.env` local ou UI Admin do tenant — **não versionar e-mails reais (LGPD)** |
+| Assunto | Prefixo por tenant + mês/ano |
 
 Corpo fixo em `services/email_delivery.py`.
 
@@ -39,11 +37,11 @@ Corpo fixo em `services/email_delivery.py`.
 
 | Cenário | Host | Porta | Auth |
 |---------|------|-------|------|
-| **Office 365 (recomendado)** | `smtp.office365.com` | 587 + STARTTLS | Sim (`notificacao@...` + senha) |
+| **Office 365 (recomendado)** | `smtp.office365.com` | 587 + STARTTLS | Sim (mailbox de serviço + senha) |
 | **Relay interno OneLinea** | `mail.onelinea.com.br` | 25 | Não (só na rede interna/VPN) |
 | **Errado** | `*.mail.protection.outlook.com` | — | MX de **entrada**, não envia como mailbox |
 
-**Importante:** envio via SMTP relay **não aparece** em "Itens enviados" do Outlook de `notificacao@`. Só mensagens enviadas pelo Outlook/Webmail aparecem lá.
+**Importante:** envio via SMTP relay **não aparece** em "Itens enviados" do Outlook da mailbox de serviço. Só mensagens enviadas pelo Outlook/Webmail aparecem lá.
 
 ## Configuração (.env) — produção + campos editáveis
 
@@ -56,11 +54,11 @@ Tudo que muda por cliente ou política de segurança fica no **`.env`** (nunca n
 | Destinatários | `SMTP_FROM`, `SMTP_TO`, `SMTP_CC`, `SMTP_ALERT_TO` | Sim |
 | SMTP | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` | Sim |
 
-**Segurança**
-- `.env` está no `.gitignore` — senhas **não** entram no Git
-- Templates (`.env.example`, `install/config.env`) vêm **sem** senhas
+**Segurança / LGPD**
+- `.env` está no `.gitignore` — senhas e e-mails reais **não** entram no Git
+- Templates (`.env.example`, `install/config.env`, YAMLs de exemplo) vêm **sem** dados pessoais
 - Assistente mascará senhas no resumo (`configurar-agendamento.bat`)
-- Portal web continua com login na tela; a rotina agendada usa só `FAZ_*` do `.env`
+- Portal web continua com login na tela; a rotina agendada usa só `FAZ_*` / e-mails do `.env` ou do tenant (Admin)
 
 ```env
 FAZ_USER=                    # conta de serviço (configurável)
@@ -76,11 +74,11 @@ SMTP_HOST=smtp.office365.com
 SMTP_PORT=587
 SMTP_USE_TLS=true
 SMTP_USE_AUTH=true
-SMTP_USER=notificacao@onelinea.com.br
+SMTP_USER=                   # mailbox de serviço — só no .env local
 SMTP_PASSWORD=               # segredo — só no .env local
-SMTP_FROM=notificacao@onelinea.com.br
-SMTP_TO=leandro.souza@cruzazulsp.com.br      # cliente (configurável)
-SMTP_ALERT_TO=roliveira@onelinea.com.br      # falha interna (configurável)
+SMTP_FROM=                   # só no .env local / Admin
+SMTP_TO=                     # destinatário cliente — só no .env local / Admin
+SMTP_ALERT_TO=               # alerta interno — só no .env local / Admin
 ```
 
 Assistente: `configurar-agendamento.bat` ou `scripts\configure_scheduler.py`

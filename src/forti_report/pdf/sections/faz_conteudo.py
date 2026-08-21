@@ -1,18 +1,34 @@
-"""Seção Referência FAZ — títulos de layout, widgets e prévia textual de gráficos."""
+"""Inventário FAZ — preferência por gráficos; tabelas só como fallback técnico."""
 
 from __future__ import annotations
+
+import re
 
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import cm
 from reportlab.platypus import Paragraph, Spacer
 
+from forti_report.charts.plotly_charts import (
+    chart_to_png_bytes,
+    create_bar_chart,
+    create_donut_chart,
+)
 from forti_report.data.mensal_models import FazChartRecord, MensalGeralReport
+from forti_report.data.parsers.mensal_utils import pie_values_from_items
+from forti_report.data.wan_models import RankedItem
+from forti_report.pdf.chart_utils import (
+    BAR_MAX_HEIGHT,
+    DONUT_MAX_HEIGHT,
+    append_chart_with_gap,
+)
+from forti_report.pdf.kpi_cards import kpi_cards_table
 from forti_report.pdf.mensal_toc import section_anchor
 from forti_report.pdf.table_utils import data_table
 
 _SECTION_GAP = 0.12 * cm
 _MAX_CHART_PREVIEWS = 18
-_MAX_PREVIEW_ROWS = 5
+_MAX_PREVIEW_ROWS = 10
+_BLOCKED_COLOR = "#E63946"
 
 
 def build_faz_conteudo_flowables(
@@ -21,8 +37,13 @@ def build_faz_conteudo_flowables(
     width: float,
     styles,
     anchor_prefix: str = "",
+    charts_enabled: bool = True,
+    chart_scope: str | None = None,
 ) -> list:
-    """Inventário do export FortiAnalyzer: seções ignoradas + texto de widgets/gráficos."""
+    """
+    Inventário do export FAZ com gráficos (barras/donuts) no lugar de planilhas.
+    Por padrão o PDF do cliente NÃO inclui esta seção (unified_mensal_builder).
+    """
     titles = mensal.faz_section_titles
     charts = mensal.faz_charts
     macros = mensal.macros
@@ -44,55 +65,24 @@ def build_faz_conteudo_flowables(
         Spacer(1, _SECTION_GAP),
         Paragraph("Referência — Conteúdo FortiAnalyzer (FAZ)", styles["Heading2"]),
         Paragraph(
-            "Títulos de seção, widgets e prévia tabular dos gráficos exportados pelo FortiAnalyzer. "
-            f"Fonte: <b>{source}</b>. Blocos marcados como «não renderizado» ainda não possuem "
-            "seção dedicada no layout Cruz Azul (dados preservados aqui para tomada de decisão).",
+            "Widgets e rankings exportados pelo FortiAnalyzer, apresentados em gráficos "
+            f"para leitura rápida. Fonte: <b>{source}</b>.",
             body,
         ),
     ]
 
-    if titles:
-        flow.append(Spacer(1, 0.12 * cm))
-        flow.append(Paragraph("Títulos de seção identificados no export FAZ", styles["Heading3"]))
-        title_rows = [["#", "Título da seção (FAZ)"]]
-        for idx, title in enumerate(titles[:40], start=1):
-            title_rows.append([str(idx), title])
-        flow.append(
-            data_table(
-                title_rows,
-                width,
-                min_widths=[0.8 * cm, 12 * cm],
-                font_size=7,
-                header_font_size=8,
-                nowrap_cols=frozenset({0}),
-                stretch_col=1,
-            )
-        )
-
-    macro_rows = [["Widget / macro", "Valor"]]
-    for key, val in sorted(macros.items()):
-        if key and val:
-            macro_rows.append([key, val])
+    macro_items = [(k, v) for k, v in sorted(macros.items()) if k and v]
     for rec in charts:
         if rec.chart_type == "macro" and len(rec.preview_rows) == 1:
             row = rec.preview_rows[0]
-            if len(row) >= 2 and [row[0], row[1]] not in macro_rows[1:]:
-                macro_rows.append([row[0], row[1]])
-
-    if len(macro_rows) > 1:
-        flow.append(Spacer(1, 0.12 * cm))
-        flow.append(Paragraph("Widgets e macros (texto numérico do FAZ)", styles["Heading3"]))
-        flow.append(
-            data_table(
-                macro_rows,
-                width,
-                min_widths=[6.5 * cm, 4.5 * cm],
-                font_size=7,
-                header_font_size=8,
-                nowrap_cols=frozenset(),
-                stretch_col=0,
-            )
-        )
+            if len(row) >= 2 and (row[0], row[1]) not in macro_items:
+                macro_items.append((row[0], row[1]))
+    if macro_items:
+        cards = kpi_cards_table(macro_items[:9], width, cols=3)
+        if cards:
+            flow.append(Spacer(1, 0.1 * cm))
+            flow.append(Paragraph("Widgets / macros", styles["Heading3"]))
+            flow.append(cards)
 
     chart_records = [c for c in charts if c.chart_type != "macro" or c.row_count > 0]
     unmapped = [c for c in chart_records if not c.rendered_in_pdf or c.mapped_field == "unmapped"]
@@ -101,48 +91,147 @@ def build_faz_conteudo_flowables(
     ordered: list[FazChartRecord] = []
     for rec in to_show:
         key = rec.title.strip().lower()
-        if key in seen:
+        if key in seen or rec.chart_type == "macro":
             continue
         seen.add(key)
         ordered.append(rec)
         if len(ordered) >= _MAX_CHART_PREVIEWS:
             break
 
-    if ordered:
+    for idx, rec in enumerate(ordered):
+        items = ranked_items_from_preview(rec.preview_rows)
         flow.append(Spacer(1, 0.12 * cm))
-        flow.append(
-            Paragraph("Conteúdo textual dos gráficos (prévia tabular)", styles["Heading3"]),
-        )
-        flow.append(
-            Paragraph(
-                "Substituto do texto embutido em gráficos/widgets do PDF FAZ quando não há "
-                "renderização gráfica equivalente no relatório Cruz Azul.",
-                body,
-            )
-        )
+        flow.append(Paragraph(f"<b>{rec.title}</b>", styles["Heading3"]))
 
-    for rec in ordered:
-        status = "renderizado" if rec.rendered_in_pdf else "não renderizado"
-        meta = f"{rec.row_count} linha(s) · campo: {rec.mapped_field or '—'} · {status}"
-        flow.append(Spacer(1, 0.08 * cm))
-        flow.append(Paragraph(f"<b>{rec.title}</b>", styles["Heading4"]))
-        flow.append(Paragraph(meta, body))
-        if rec.preview_rows:
-            preview_table = [["Prévia (texto exportado)"]]
-            for row in rec.preview_rows[:_MAX_PREVIEW_ROWS]:
-                preview_table.append([" · ".join(cell for cell in row if cell)])
+        charted = False
+        if charts_enabled and len(items) >= 2:
+            use_donut = _prefer_donut(rec.title)
+            try:
+                if use_donut:
+                    labels, values = pie_values_from_items(items, max_items=8)
+                    fig = create_donut_chart(labels, values, title=rec.title[:60])
+                else:
+                    color = _BLOCKED_COLOR if _is_blocked_title(rec.title) else None
+                    fig = create_bar_chart(
+                        items,
+                        title=rec.title[:60],
+                        value_label=_value_label(rec.title),
+                        max_items=_MAX_PREVIEW_ROWS,
+                        color=color,
+                    )
+                if fig:
+                    png = chart_to_png_bytes(
+                        fig,
+                        cache_key=f"faz-preview:{anchor_prefix}:{idx}:{rec.title[:40]}",
+                        cache_scope=chart_scope,
+                    )
+                    append_chart_with_gap(
+                        flow,
+                        png,
+                        max_width=width,
+                        max_height=DONUT_MAX_HEIGHT if use_donut else BAR_MAX_HEIGHT,
+                    )
+                    charted = True
+            except Exception:
+                charted = False
+
+        if not charted and rec.preview_rows:
+            # Fallback mínimo — só se não deu para plotar
+            preview_table = [["#", "Item", "Valor"]]
+            for i, item in enumerate(items[:_MAX_PREVIEW_ROWS], start=1):
+                preview_table.append([str(i), item.label, item.value or "—"])
+            if len(preview_table) == 1:
+                for row in rec.preview_rows[:5]:
+                    preview_table.append(["", " · ".join(cell for cell in row if cell), ""])
             flow.append(
                 data_table(
                     preview_table,
                     width,
-                    min_widths=[14 * cm],
-                    font_size=6,
-                    header_font_size=7,
-                    nowrap_cols=frozenset(),
-                    stretch_col=0,
+                    min_widths=[0.8 * cm, 8 * cm, 3 * cm],
+                    font_size=7,
+                    header_font_size=8,
+                    nowrap_cols=frozenset({0, 2}),
+                    stretch_col=1,
                 )
             )
-        else:
-            flow.append(Paragraph("<i>Sem linhas tabulares no export (gráfico puro / widget visual).</i>", body))
 
     return flow
+
+
+def ranked_items_from_preview(preview_rows: list[list[str]]) -> list[RankedItem]:
+    """Converte linhas 'User: x · Requests: y · % do Total: z' em RankedItem."""
+    items: list[RankedItem] = []
+    for idx, row in enumerate(preview_rows or [], start=1):
+        if not row:
+            continue
+        if len(row) == 2 and not any(":" in c for c in row):
+            items.append(RankedItem(rank=idx, label=row[0], value=row[1]))
+            continue
+
+        fields: dict[str, str] = {}
+        for cell in row:
+            for part in re.split(r"\s*·\s*", cell):
+                if ":" in part:
+                    key, _, val = part.partition(":")
+                    fields[key.strip().lower()] = val.strip()
+
+        label = (
+            fields.get("user")
+            or fields.get("usuário")
+            or fields.get("usuario")
+            or fields.get("site")
+            or fields.get("sites")
+            or fields.get("category")
+            or fields.get("categoria")
+            or fields.get("application")
+            or fields.get("aplicação")
+            or fields.get("aplicacao")
+            or fields.get("policy")
+            or fields.get("política")
+            or fields.get("politica")
+            or fields.get("name")
+            or (row[0].split(":", 1)[-1].strip() if row else "")
+        )
+        value = (
+            fields.get("requests")
+            or fields.get("requisições")
+            or fields.get("requisicoes")
+            or fields.get("count")
+            or fields.get("bytes")
+            or fields.get("banda")
+            or fields.get("bandwidth")
+            or fields.get("sessions")
+            or fields.get("sessões")
+            or fields.get("time")
+            or fields.get("tempo")
+            or (row[1] if len(row) > 1 and ":" not in row[1] else "")
+        )
+        pct = fields.get("% do total") or fields.get("% do subtotal") or fields.get("%") or ""
+        if pct and not pct.endswith("%"):
+            pct = f"{pct}%"
+        if label:
+            items.append(
+                RankedItem(rank=idx, label=label, value=value or pct or "0", percentage=pct)
+            )
+    return items
+
+
+def _prefer_donut(title: str) -> bool:
+    t = title.lower()
+    return any(k in t for k in ("distribui", "visibil", "aplicativ", "sd-wan", "categoria"))
+
+
+def _is_blocked_title(title: str) -> bool:
+    t = title.lower()
+    return any(k in t for k in ("bloque", "risco", "phishing", "malicio"))
+
+
+def _value_label(title: str) -> str:
+    t = title.lower()
+    if "banda" in t or "byte" in t or "tráfego" in t or "trafego" in t:
+        return "Banda"
+    if "tempo" in t or "naveg" in t:
+        return "Tempo"
+    if "sess" in t:
+        return "Sessões"
+    return "Requisições"

@@ -166,7 +166,7 @@ Hoje o pipeline MENSAL prioriza o **JSON** exportado pelo schedule **MENSAL- REL
 | Resumo Executivo — Visão Geral | Após tabela global | `pdf/sections/resumo_executivo.py` |
 | Resumo Executivo | Por dispositivo | `pdf/sections/resumo_executivo.py` |
 | Segurança Ampliada | Por dispositivo | `pdf/sections/seguranca.py` |
-| Referência FAZ (títulos + widgets + prévia gráficos) | Por dispositivo | `pdf/sections/faz_conteudo.py`, [doc/decisao-conteudo-faz.md](doc/decisao-conteudo-faz.md) |
+| Referência FAZ (inventário interno) | Fora do PDF do cliente | `pdf/sections/faz_conteudo.py` (não renderizado na entrega) |
 
 **Ideias futuras:** comparativo mensal, SLA/conectividade, resumo por unidade regional, parágrafos narrativos FAZ originais.
 

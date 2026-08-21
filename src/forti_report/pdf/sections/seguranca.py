@@ -1,4 +1,4 @@
-"""Seção Segurança Ampliada — indicadores e rankings de segurança."""
+"""Seção Segurança Ampliada — cards KPI + gráficos + tabelas com valores exatos."""
 
 from __future__ import annotations
 
@@ -6,13 +6,22 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import cm
 from reportlab.platypus import Paragraph, Spacer
 
+from forti_report.charts.plotly_charts import chart_to_png_bytes, create_bar_chart, top_users_bar_chart
 from forti_report.data.mensal_models import MensalGeralReport
-from forti_report.data.parsers.mensal_utils import block_rate_percent, filter_ranked
+from forti_report.data.parsers.mensal_utils import (
+    block_rate_percent,
+    filter_ranked,
+    ranked_chart_values,
+    split_phishing_item,
+)
+from forti_report.pdf.chart_utils import BAR_MAX_HEIGHT, append_chart_with_gap
+from forti_report.pdf.kpi_cards import kpi_cards_table
 from forti_report.pdf.mensal_toc import section_anchor
 from forti_report.pdf.table_utils import data_table, ranked_table
 
 _SECTION_GAP = 0.12 * cm
-_TOP_N = 5
+_TOP_N = 10
+_BLOCKED_COLOR = "#E63946"
 
 
 def build_seguranca_flowables(
@@ -21,8 +30,10 @@ def build_seguranca_flowables(
     width: float,
     styles,
     anchor_prefix: str = "",
+    charts_enabled: bool = True,
+    chart_scope: str | None = None,
 ) -> list:
-    """Painel consolidado de segurança: bloqueios, risco, phishing e categorias bloqueadas."""
+    """Painel consolidado: visão rápida (gráfico) + detalhe operacional (tabela)."""
     s = mensal.summary
     blocked_users = filter_ranked(mensal.top_users_blocked)
     risk_users = filter_ranked(mensal.top_risk_users)
@@ -44,18 +55,21 @@ def build_seguranca_flowables(
     blocked = s.blocked_requests or ""
     block_pct = block_rate_percent(allowed, blocked)
 
-    kpi_rows = [
-        ["Indicador de segurança", "Valor"],
-        ["Requisições bloqueadas", blocked or "—"],
-        ["Taxa de bloqueio", block_pct or "—"],
+    cards = kpi_cards_table(
         [
-            "Sites maliciosos",
-            str(s.malicious_sites or mensal.macros.get("web Usage Total Malicious Websites Count", "—")),
+            ("Bloqueadas", blocked or "—"),
+            ("Taxa bloqueio", block_pct or "—"),
+            (
+                "Sites maliciosos",
+                str(s.malicious_sites or mensal.macros.get("web Usage Total Malicious Websites Count", "—")),
+            ),
+            ("Usuários bloqueados", str(len(blocked_users)) if blocked_users else "—"),
+            ("Usuários de risco", str(len(risk_users)) if risk_users else "—"),
+            ("Phishing", str(len(phishing)) if phishing else "—"),
         ],
-        ["Usuários no ranking de bloqueio", str(len(blocked_users)) if blocked_users else "—"],
-        ["Usuários de risco identificados", str(len(risk_users)) if risk_users else "—"],
-        ["Registros de phishing (ranking)", str(len(phishing)) if phishing else "—"],
-    ]
+        width,
+        cols=3,
+    )
 
     body = ParagraphStyle(
         "SecBody",
@@ -70,72 +84,130 @@ def build_seguranca_flowables(
         Spacer(1, _SECTION_GAP),
         Paragraph("Segurança Ampliada", styles["Heading2"]),
         Paragraph(
-            "Consolidação de bloqueios, sites maliciosos, usuários de risco e tentativas de phishing "
-            "detectados pelo FortiGate no período.",
+            "Onde agir primeiro: bloqueios, risco e phishing do período. "
+            "Gráfico mostra o padrão; tabela traz usuário, volume e percentual.",
             body,
         ),
-        data_table(
-            kpi_rows,
-            width,
-            min_widths=[6.5 * cm, 4.0 * cm],
-            font_size=8,
-            header_font_size=9,
-            nowrap_cols=frozenset({1}),
-            stretch_col=0,
-        ),
     ]
+    if cards:
+        flow.append(Spacer(1, 0.1 * cm))
+        flow.append(cards)
 
-    if blocked_users:
-        flow.append(Spacer(1, 0.2 * cm))
-        flow.append(Paragraph("Top usuários bloqueados", styles["Heading3"]))
-        flow.append(
-            ranked_table(
-                blocked_users[:_TOP_N],
-                width,
-                label_header="Usuário",
-                value_header="Requisições",
-                pct_col=True,
-            )
-        )
-
-    if risk_users:
+    def _add_ranked(
+        title: str,
+        items: list,
+        *,
+        cache_key: str,
+        label_header: str = "Usuário",
+        value_header: str = "Requisições",
+        pct_col: bool = True,
+        category_col: bool = False,
+        use_user_bar: bool = True,
+    ) -> None:
+        nonlocal flow
+        if not items:
+            return
+        top = items[:_TOP_N]
         flow.append(Spacer(1, 0.15 * cm))
-        flow.append(Paragraph("Top usuários de risco", styles["Heading3"]))
+        flow.append(Paragraph(title, styles["Heading3"]))
+        if charts_enabled and ranked_chart_values(top, max_items=_TOP_N)[0]:
+            fig = (
+                top_users_bar_chart(top, title=title, color=_BLOCKED_COLOR)
+                if use_user_bar
+                else create_bar_chart(
+                    top,
+                    title=title,
+                    value_label=value_header,
+                    max_items=_TOP_N,
+                    color=_BLOCKED_COLOR,
+                )
+            )
+            if fig:
+                try:
+                    png = chart_to_png_bytes(
+                        fig,
+                        cache_key=cache_key,
+                        cache_scope=chart_scope,
+                    )
+                    append_chart_with_gap(
+                        flow, png, max_width=width, max_height=BAR_MAX_HEIGHT
+                    )
+                except Exception:
+                    pass
         flow.append(
             ranked_table(
-                risk_users[:_TOP_N],
+                top,
                 width,
-                label_header="Usuário",
-                value_header="Requisições",
-                pct_col=True,
+                label_header=label_header,
+                value_header=value_header,
+                pct_col=pct_col,
+                category_col=category_col,
             )
         )
+
+    _add_ranked(
+        "Top usuários bloqueados",
+        blocked_users,
+        cache_key=f"sec-blocked:{anchor_prefix}",
+    )
+    _add_ranked(
+        "Top usuários de risco",
+        risk_users,
+        cache_key=f"sec-risk:{anchor_prefix}",
+    )
 
     if phishing:
+        top_phish = phishing[:_TOP_N]
         flow.append(Spacer(1, 0.15 * cm))
         flow.append(Paragraph("Principais vítimas de phishing", styles["Heading3"]))
+        if charts_enabled and ranked_chart_values(top_phish, max_items=_TOP_N)[0]:
+            fig = create_bar_chart(
+                top_phish,
+                title="Vítimas de phishing",
+                value_label="Ocorrências",
+                max_items=_TOP_N,
+                color=_BLOCKED_COLOR,
+            )
+            if fig:
+                try:
+                    png = chart_to_png_bytes(
+                        fig,
+                        cache_key=f"sec-phish:{anchor_prefix}",
+                        cache_scope=chart_scope,
+                    )
+                    append_chart_with_gap(
+                        flow, png, max_width=width, max_height=BAR_MAX_HEIGHT
+                    )
+                except Exception:
+                    pass
+        rows = [["#", "Usuário", "Site", "Ocorrências", "%"]]
+        for item in top_phish:
+            user, site = split_phishing_item(item)
+            rows.append([
+                str(item.rank),
+                user,
+                site,
+                item.value or "—",
+                item.percentage or "—",
+            ])
         flow.append(
-            ranked_table(
-                phishing[:_TOP_N],
+            data_table(
+                rows,
                 width,
-                label_header="Usuário / Site",
-                value_header="Ocorrências",
-                pct_col=True,
+                min_widths=[0.7 * cm, 2.4 * cm, 5.0 * cm, 2.0 * cm, 1.3 * cm],
+                font_size=7,
+                header_font_size=8,
+                nowrap_cols=frozenset({0, 3, 4}),
+                stretch_col=2,
             )
         )
 
-    if blocked_cats:
-        flow.append(Spacer(1, 0.15 * cm))
-        flow.append(Paragraph("Categorias e usuários mais bloqueados", styles["Heading3"]))
-        flow.append(
-            ranked_table(
-                blocked_cats[:_TOP_N],
-                width,
-                label_header="Usuário",
-                value_header="Requisições",
-                pct_col=True,
-                category_col=True,
-            )
-        )
+    _add_ranked(
+        "Categorias e usuários mais bloqueados",
+        blocked_cats,
+        cache_key=f"sec-cats:{anchor_prefix}",
+        category_col=True,
+        use_user_bar=False,
+    )
 
     return flow

@@ -45,7 +45,7 @@ def _settings(tmp_path: Path, **overrides) -> Settings:
 
 def test_format_email_subject():
     when = datetime(2026, 7, 5, 6, 0)
-    assert format_email_subject(when) == "Cruz Azul | Relatório Mensal FortiAnalyzer – 07/2026"
+    assert format_email_subject(when) == "Relatório Mensal FortiAnalyzer – 07/2026"
 
 
 def test_compute_next_run_same_month_before_due():

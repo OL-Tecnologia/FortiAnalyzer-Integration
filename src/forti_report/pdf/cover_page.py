@@ -1,4 +1,4 @@
-"""Capa MENSAL — cabeçalho/rodapé gráficos + bloco central de texto e logo."""
+"""Capa MENSAL — faixa superior OL + texto/logo cliente + faixa inferior."""
 
 from __future__ import annotations
 
@@ -10,10 +10,88 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.lib.utils import ImageReader
-from reportlab.platypus import Image, Paragraph, Spacer, Table, TableStyle
+from reportlab.platypus import Flowable, Image, KeepTogether, Paragraph, Spacer, Table, TableStyle
 
 from forti_report.config import Settings
 from forti_report.pdf.page_layout import LATERAL_MARGIN
+
+# Folga para o motor do ReportLab não empurrar a faixa inferior para a 2ª página
+# quando a soma das alturas fecha exatamente em A4.
+_COVER_PAGE_SLACK = 3.0
+_DEFAULT_LOGO_WIDTH_CM = 2.1
+_DEFAULT_LOGO_ALIGN = "right"
+_DEFAULT_LOGO_OFFSET_Y_CM = 0.35
+
+
+class _CoverLogoSlot(Flowable):
+    """Caixa do miolo inferior com logo dimensionado e posicionado."""
+
+    def __init__(
+        self,
+        path: Path,
+        *,
+        box_w: float,
+        box_h: float,
+        logo_w: float,
+        logo_h: float,
+        align: str,
+        offset_x: float,
+        offset_y: float,
+        side_pad: float,
+    ):
+        super().__init__()
+        self.path = path
+        self.box_w = box_w
+        self.box_h = box_h
+        self.logo_w = logo_w
+        self.logo_h = logo_h
+        self.align = (align or _DEFAULT_LOGO_ALIGN).lower()
+        self.offset_x = offset_x
+        self.offset_y = offset_y
+        self.side_pad = side_pad
+
+    def wrap(self, availWidth, availHeight):  # noqa: N803
+        return self.box_w, self.box_h
+
+    def draw(self) -> None:
+        inner_left = self.side_pad
+        inner_right = self.box_w - self.side_pad
+        inner_w = max(inner_right - inner_left, self.logo_w)
+        if self.align == "left":
+            x = inner_left
+        elif self.align == "center":
+            x = inner_left + (inner_w - self.logo_w) / 2
+        else:
+            x = inner_right - self.logo_w
+        x += self.offset_x
+        y = max(0.0, min(self.offset_y, self.box_h - self.logo_h))
+        self.canv.drawImage(
+            str(self.path),
+            x,
+            y,
+            width=self.logo_w,
+            height=self.logo_h,
+            mask="auto",
+            preserveAspectRatio=True,
+        )
+
+
+def _logo_layout(settings: Settings, logo_path: Path) -> tuple[float, float, str, float, float]:
+    """Retorna (logo_w, logo_h, align, offset_x, offset_y) em pontos."""
+    width_cm = float(getattr(settings, "pdf_cover_logo_width_cm", _DEFAULT_LOGO_WIDTH_CM) or _DEFAULT_LOGO_WIDTH_CM)
+    width_cm = max(0.5, min(width_cm, 10.0))
+    align = str(getattr(settings, "pdf_cover_logo_align", _DEFAULT_LOGO_ALIGN) or _DEFAULT_LOGO_ALIGN).lower()
+    if align not in {"left", "center", "right"}:
+        align = _DEFAULT_LOGO_ALIGN
+    ox = float(getattr(settings, "pdf_cover_logo_offset_x_cm", 0.0) or 0.0) * cm
+    oy = float(
+        getattr(settings, "pdf_cover_logo_offset_y_cm", _DEFAULT_LOGO_OFFSET_Y_CM) or _DEFAULT_LOGO_OFFSET_Y_CM
+    ) * cm
+    reader = ImageReader(str(logo_path))
+    iw, ih = reader.getSize()
+    logo_w = width_cm * cm
+    logo_h = logo_w * ih / iw if iw else logo_w
+    return logo_w, logo_h, align, ox, oy
 
 _MONTHS_PT = (
     "Janeiro",
@@ -49,6 +127,12 @@ def _month_year_label(when: datetime | None = None) -> str:
     return f"{_MONTHS_PT[dt.month - 1]}/{dt.year}"
 
 
+def _cover_subtitle(adom: str, company: str) -> str:
+    """Na capa usa o Nome de exibição do cliente; ADOM só como fallback."""
+    label = (company or adom or "").strip()
+    return f"Relatório Unificado — {label}"
+
+
 def build_mensal_cover_flowables(
     settings: Settings,
     *,
@@ -57,27 +141,61 @@ def build_mensal_cover_flowables(
     antennas: int,
     when: datetime | None = None,
 ) -> list:
-    """Monta capa A4: cabecalho_capa + texto central + logo + rodape_capa."""
+    """
+    Capa A4 completa:
+    - faixa superior (cabecalho_capa — branding OL)
+    - miolo: título, ADOM/empresa, contagens FAZ, mês/ano, logo do cliente
+    - faixa inferior (rodape_capa — branding OL)
+    """
     page_w, page_h = A4
     header_path = _asset(settings.pdf_cover_header_image)
     footer_path = _asset(settings.pdf_cover_footer_image)
     logo_path = _asset(settings.pdf_cover_logo_image)
 
+    title = (settings.cover_title or "RELATÓRIO MENSAL  GERAL").strip()
+    company = (settings.client_display_name or "").strip()
+    subtitle = _cover_subtitle(adom, company)
+
     if not header_path and not footer_path:
-        return _fallback_cover(adom, regional_units, antennas, when)
+        return _text_only_cover(
+            adom,
+            regional_units,
+            antennas,
+            when,
+            title=title,
+            company=company,
+            logo_path=logo_path,
+            settings=settings,
+        )
 
     flow: list = []
     header_h = 0.0
     footer_h = 0.0
 
+    header_img = None
     if header_path:
         header_img, header_h = _full_width_image(header_path, page_w)
-        flow.append(header_img)
 
+    footer_img = None
     if footer_path:
-        _, footer_h = _full_width_image(footer_path, page_w)
+        footer_img, footer_h = _full_width_image(footer_path, page_w)
 
-    middle_h = max(page_h - header_h - footer_h, 6 * cm)
+    # Garante capa em 1 página: escala faixas se necessário e deixa folga.
+    min_middle = 5 * cm
+    band_h = header_h + footer_h
+    budget = page_h - _COVER_PAGE_SLACK - min_middle
+    if band_h > budget > 0:
+        scale = budget / band_h
+        header_h *= scale
+        footer_h *= scale
+        if header_img is not None:
+            header_img = Image(str(header_path), width=page_w, height=header_h)
+            header_img.hAlign = "CENTER"
+        if footer_img is not None:
+            footer_img = Image(str(footer_path), width=page_w, height=footer_h)
+            footer_img.hAlign = "CENTER"
+
+    middle_h = page_h - _COVER_PAGE_SLACK - header_h - footer_h
 
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
@@ -109,8 +227,8 @@ def build_mensal_cover_flowables(
     )
 
     text_block: list = [
-        Paragraph("RELATÓRIO MENSAL  GERAL", title_style),
-        Paragraph(f"Relatório Unificado — ADOM {adom}", subtitle_style),
+        Paragraph(title, title_style),
+        Paragraph(subtitle, subtitle_style),
         Paragraph(
             f"{regional_units} unidades regionais · {antennas} dispositivos",
             body_style,
@@ -118,80 +236,138 @@ def build_mensal_cover_flowables(
         Paragraph(_month_year_label(when), body_style),
     ]
 
-    logo_h = 0.0
-    logo_cell: list | Image = Spacer(1, 0.1 * cm)
-    if logo_path:
-        reader = ImageReader(str(logo_path))
-        iw, ih = reader.getSize()
-        logo_w = 2.1 * cm
-        logo_h = logo_w * ih / iw
-        logo_img = Image(str(logo_path), width=logo_w, height=logo_h)
-        logo_img.hAlign = "RIGHT"
-        logo_cell = logo_img
-
     side_pad = LATERAL_MARGIN
-    logo_row_h = logo_h + 0.5 * cm if logo_path else 0.2 * cm
-    text_row_h = max(middle_h - logo_row_h, 4 * cm)
+    logo_cell: Flowable | Spacer = Spacer(1, 0.1 * cm)
+    logo_row_h = 0.2 * cm
+    if logo_path:
+        logo_w, logo_h, align, ox, oy = _logo_layout(settings, logo_path)
+        logo_row_h = logo_h + oy + 0.15 * cm
+        if logo_row_h >= middle_h - 3 * cm:
+            logo_row_h = max(middle_h * 0.22, logo_h + 0.1 * cm)
+            oy = max(0.0, logo_row_h - logo_h - 0.1 * cm)
+        logo_cell = _CoverLogoSlot(
+            logo_path,
+            box_w=page_w,
+            box_h=logo_row_h,
+            logo_w=logo_w,
+            logo_h=logo_h,
+            align=align,
+            offset_x=ox,
+            offset_y=oy,
+            side_pad=side_pad,
+        )
+
+    text_row_h = middle_h - logo_row_h
     middle = Table(
         [[text_block], [logo_cell]],
         colWidths=[page_w],
         rowHeights=[text_row_h, logo_row_h],
     )
     middle.setStyle(
-        TableStyle([
-            ("VALIGN", (0, 0), (0, 0), "MIDDLE"),
-            ("VALIGN", (0, 1), (0, 1), "BOTTOM"),
-            ("ALIGN", (0, 0), (0, 0), "CENTER"),
-            ("ALIGN", (0, 1), (0, 1), "RIGHT"),
-            ("LEFTPADDING", (0, 0), (-1, -1), side_pad),
-            ("RIGHTPADDING", (0, 0), (-1, -1), side_pad),
-            ("TOPPADDING", (0, 0), (-1, -1), 0),
-            ("BOTTOMPADDING", (0, 0), (0, 0), 0),
-            ("BOTTOMPADDING", (0, 1), (0, 1), 0.4 * cm),
-        ])
+        TableStyle(
+            [
+                ("VALIGN", (0, 0), (0, 0), "MIDDLE"),
+                ("VALIGN", (0, 1), (0, 1), "BOTTOM"),
+                ("ALIGN", (0, 0), (0, 0), "CENTER"),
+                ("LEFTPADDING", (0, 0), (0, 0), side_pad),
+                ("RIGHTPADDING", (0, 0), (0, 0), side_pad),
+                ("LEFTPADDING", (0, 1), (0, 1), 0),
+                ("RIGHTPADDING", (0, 1), (0, 1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+            ]
+        )
     )
-    flow.append(middle)
 
-    if footer_path:
-        footer_img, _ = _full_width_image(footer_path, page_w)
+    if header_img is not None:
+        flow.append(header_img)
+    flow.append(middle)
+    if footer_img is not None:
         flow.append(footer_img)
 
-    return flow
+    return [KeepTogether(flow)]
 
 
-def _fallback_cover(
+def _text_only_cover(
     adom: str,
     regional_units: int,
     antennas: int,
     when: datetime | None,
+    *,
+    title: str,
+    company: str,
+    logo_path: Path | None,
+    settings: Settings,
 ) -> list:
+    """Fallback se as faixas OL não existirem no disco."""
+    page_w, page_h = A4
     styles = getSampleStyleSheet()
-    centered = ParagraphStyle("CoverCenter", parent=styles["Normal"], alignment=1)
-    return [
-        Spacer(1, 5.5 * cm),
+    subtitle = _cover_subtitle(adom, company)
+    text_block = [
         Paragraph(
-            "RELATÓRIO MENSAL  GERAL",
+            title,
             ParagraphStyle(
                 "T",
                 parent=styles["Title"],
-                fontSize=24,
+                fontSize=22,
                 alignment=1,
                 textColor=colors.HexColor("#003366"),
+                spaceAfter=10,
             ),
         ),
         Paragraph(
-            f"Relatório Unificado — ADOM {adom}",
+            subtitle,
             ParagraphStyle(
                 "S",
                 parent=styles["Heading2"],
+                fontSize=14,
                 alignment=1,
                 textColor=colors.HexColor("#0066A1"),
+                spaceAfter=8,
             ),
         ),
-        Spacer(1, 0.5 * cm),
         Paragraph(
             f"{regional_units} unidades regionais · {antennas} dispositivos",
-            centered,
+            ParagraphStyle("B", parent=styles["Normal"], alignment=1, fontSize=11),
         ),
-        Paragraph(_month_year_label(when), centered),
+        Paragraph(
+            _month_year_label(when),
+            ParagraphStyle("M", parent=styles["Normal"], alignment=1, fontSize=11),
+        ),
     ]
+    logo_cell: Flowable | Spacer = Spacer(1, 0.1 * cm)
+    logo_row_h = 0.2 * cm
+    if logo_path:
+        logo_w, logo_h, align, ox, oy = _logo_layout(settings, logo_path)
+        logo_row_h = logo_h + oy + 0.15 * cm
+        logo_cell = _CoverLogoSlot(
+            logo_path,
+            box_w=page_w,
+            box_h=logo_row_h,
+            logo_w=logo_w,
+            logo_h=logo_h,
+            align=align,
+            offset_x=ox,
+            offset_y=oy,
+            side_pad=LATERAL_MARGIN,
+        )
+    text_row_h = max(page_h - logo_row_h - 1.5 * cm, 8 * cm)
+    middle = Table(
+        [[text_block], [logo_cell]],
+        colWidths=[page_w],
+        rowHeights=[text_row_h, logo_row_h],
+    )
+    middle.setStyle(
+        TableStyle(
+            [
+                ("VALIGN", (0, 0), (0, 0), "MIDDLE"),
+                ("VALIGN", (0, 1), (0, 1), "BOTTOM"),
+                ("ALIGN", (0, 0), (0, 0), "CENTER"),
+                ("LEFTPADDING", (0, 0), (0, 0), LATERAL_MARGIN),
+                ("RIGHTPADDING", (0, 0), (0, 0), LATERAL_MARGIN),
+                ("LEFTPADDING", (0, 1), (0, 1), 0),
+                ("RIGHTPADDING", (0, 1), (0, 1), 0),
+            ]
+        )
+    )
+    return [KeepTogether([middle])]

@@ -35,6 +35,39 @@ function showLoginError(msg) {
   box.classList.remove("hidden");
 }
 
+async function loadClients() {
+  const select = document.getElementById("loginClient");
+  const hint = document.getElementById("loginAdomHint");
+  const field = document.getElementById("clientField");
+  if (!select) return [];
+
+  const res = await fetch(apiUrl("/api/clients"), API);
+  if (!res.ok) {
+    throw new Error("Não foi possível carregar a lista de clientes.");
+  }
+  const clients = await res.json();
+  select.innerHTML = clients
+    .map(
+      (c) =>
+        `<option value="${c.slug}" data-adom="${c.adom}">${c.display_name} (${c.adom})</option>`
+    )
+    .join("");
+
+  if (clients.length <= 1 && field) {
+    field.classList.add("hidden");
+  }
+
+  const updateHint = () => {
+    const opt = select.selectedOptions[0];
+    if (hint && opt) {
+      hint.textContent = `ADOM: ${opt.dataset.adom || "—"}`;
+    }
+  };
+  select.addEventListener("change", updateHint);
+  updateHint();
+  return clients;
+}
+
 async function initLoginPage() {
   const me = await checkAuth();
   if (me && me.authenticated) {
@@ -46,6 +79,17 @@ async function initLoginPage() {
   const btn = document.getElementById("btnLogin");
   if (!form) return;
 
+  try {
+    const clients = await loadClients();
+    if (!clients.length) {
+      showLoginError("Nenhum cliente cadastrado. Use a engrenagem (Administração) para cadastrar.");
+      btn.disabled = true;
+      return;
+    }
+  } catch (err) {
+    showLoginError(err.message || "Falha ao carregar clientes");
+  }
+
   form.addEventListener("submit", async (ev) => {
     ev.preventDefault();
     btn.disabled = true;
@@ -53,13 +97,14 @@ async function initLoginPage() {
 
     const user = document.getElementById("loginUser").value.trim();
     const password = document.getElementById("loginPassword").value;
+    const clientSlug = document.getElementById("loginClient")?.value || "";
 
     try {
       const res = await fetch(apiUrl("/api/auth/faz/login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ user, password }),
+        body: JSON.stringify({ user, password, client_slug: clientSlug }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));

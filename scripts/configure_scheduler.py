@@ -67,13 +67,13 @@ DEFAULTS: dict[str, str] = {
     "SMTP_USE_TLS": "true",
     "SMTP_USE_SSL": "false",
     "SMTP_USE_AUTH": "true",
-    "SMTP_USER": "notificacao@onelinea.com.br",
+    "SMTP_USER": "",
     "SMTP_PASSWORD": "",
     "SMTP_TIMEOUT": "60",
-    "SMTP_FROM": "notificacao@onelinea.com.br",
-    "SMTP_TO": "leandro.souza@cruzazulsp.com.br",
+    "SMTP_FROM": "",
+    "SMTP_TO": "",
     "SMTP_CC": "",
-    "SMTP_ALERT_TO": "roliveira@onelinea.com.br",
+    "SMTP_ALERT_TO": "",
 }
 
 

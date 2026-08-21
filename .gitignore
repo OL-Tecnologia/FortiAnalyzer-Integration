@@ -23,6 +23,9 @@ output/
 !assets/**/*.pdf
 .plotly/
 
+# Segredos por tenant (senhas de automação FAZ)
+configs/clients/.secrets/
+
 # IDE / SO
 .idea/
 .vscode/
