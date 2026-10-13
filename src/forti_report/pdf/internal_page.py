@@ -212,6 +212,7 @@ def draw_internal_page_footer(
     page_num: int,
     total_pages: int,
     footer_h: float,
+    display_name: str = "",
 ) -> None:
     pw, _ = A4
     x0 = LATERAL_MARGIN
@@ -226,5 +227,6 @@ def draw_internal_page_footer(
     canvas.setFillColor(_FOOTER_TEXT_COLOR)
     text_y = line_y - _FONT_SIZE - 1
     total = max(total_pages, page_num, 1)
-    canvas.drawString(x0, text_y, f"RELATORIO MENSAL GERAL — {adom}")
+    label = (display_name or adom or "").strip()
+    canvas.drawString(x0, text_y, f"RELATORIO MENSAL GERAL — {label}")
     canvas.drawRightString(x1, text_y, f"Página {page_num} de {total}")

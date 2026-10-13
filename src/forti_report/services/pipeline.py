@@ -257,7 +257,7 @@ class ReportPipeline:
         days: int = 60,
         download: bool = False,
     ) -> HierarchyImportResult:
-        """Importa relatórios por antena e agrupa por unidade regional."""
+        """Importa relatórios por dispositivo e agrupa por unidade regional."""
         import_result = self.import_all_units(days=days, download=download)
         reports_map = {u.device_name: u for u in import_result.units}
 

@@ -5,11 +5,11 @@
 
 ## Objetivo
 
-Um único PDF com **6 unidades regionais** e **11 antenas** do ADOM, consolidando o layout **MENSAL- RELATÓRIO GERAL** do FortiAnalyzer.
+Um único PDF com **6 unidades regionais** e **11 dispositivos** do ADOM, consolidando o layout **MENSAL- RELATÓRIO GERAL** do FortiAnalyzer.
 
 ## Fluxo
 
-1. `MensalReportPipeline.fetch_hierarchy` — importa/baixa JSON por antena.  
+1. `MensalReportPipeline.fetch_hierarchy` — importa/baixa JSON por dispositivo.  
 2. `UnifiedMensalPdfBuilder.build` — monta story ReportLab e `multiBuild` (sumário + páginas).  
 
 ## Estrutura do PDF
@@ -21,7 +21,11 @@ Um único PDF com **6 unidades regionais** e **11 antenas** do ADOM, consolidand
 | Conteúdo | `main` | `pdf/unified_mensal_builder.py` |
 | Cabeçalho/rodapé internos | `onPage` | `pdf/internal_page.py` |
 
-## Seções por antena (exemplos)
+## Seções por dispositivo (exemplos)
+
+- **Resumo Executivo** — cards KPI, donut permitidas/bloqueadas, gauge SD-WAN  
+- **Segurança Ampliada** — cards KPI + barras de risco/bloqueio  
+- Gráficos executivos (barras H, donuts) nas seções de usuários, categorias, sites, SD-WAN e políticas  
 
 - Resumo de utilização web  
 - Timeline consumo de banda  

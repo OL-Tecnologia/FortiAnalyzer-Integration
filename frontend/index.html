@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Relatório MENSAL — Cruz Azul</title>
+  <title>Relatório MENSAL — FortiAnalyzer</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -13,7 +13,21 @@
         <span class="brand-tag">OL Tecnologia</span>
         <h1>Relatório MENSAL GERAL</h1>
       </div>
-      <div class="client-badge" id="clientBadge">Carregando…</div>
+      <div class="header-actions">
+        <div class="client-badge" id="clientBadge">Carregando…</div>
+        <button
+          type="button"
+          class="btn-icon"
+          id="btnOpenConfig"
+          title="Configuração da automação"
+          aria-label="Configuração da automação"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
+      </div>
       <div class="user-bar">
         <span class="user-name" id="userLabel"></span>
         <button type="button" class="btn btn-ghost btn-sm" id="btnLogout">Sair</button>
@@ -22,8 +36,8 @@
 
     <main class="card">
       <p class="lead">
-        Gera o PDF unificado com todas as unidades e antenas do ADOM configurado.
-        O progresso abaixo mostra cada etapa (FortiAnalyzer, antenas e montagem do PDF).
+        Gera o PDF unificado com todas as unidades regionais e dispositivos do ADOM configurado.
+        O progresso abaixo mostra cada etapa (FortiAnalyzer, dispositivos e montagem do PDF).
       </p>
 
       <div class="options">
@@ -71,6 +85,90 @@
       <span id="footerSchedule"></span>
     </footer>
   </div>
+
+  <div class="modal hidden" id="configModal" role="dialog" aria-modal="true" aria-labelledby="configModalTitle">
+    <div class="modal-backdrop" id="configModalBackdrop"></div>
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2 id="configModalTitle">Configuração da automação</h2>
+        <button type="button" class="btn-icon" id="btnCloseConfig" title="Fechar" aria-label="Fechar">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <p class="config-hint">
+        Ajuste o dia/hora do envio automático e os e-mails do cliente da sessão.
+        Credenciais FAZ ficam na tela de login; SMTP técnico permanece no .env.
+      </p>
+
+      <form id="configForm" class="config-form" autocomplete="off">
+        <fieldset class="config-group">
+          <legend>Agendamento</legend>
+          <label class="check">
+            <input type="checkbox" id="cfgScheduleEnabled" />
+            Habilitar envio automático
+          </label>
+          <div class="config-row">
+            <label class="field">
+              Dia do mês
+              <input type="number" id="cfgDay" min="1" max="28" />
+            </label>
+            <label class="field">
+              Hora
+              <input type="number" id="cfgHour" min="0" max="23" />
+            </label>
+            <label class="field">
+              Minuto
+              <input type="number" id="cfgMinute" min="0" max="59" />
+            </label>
+          </div>
+          <label class="check">
+            <input type="checkbox" id="cfgRetryEnabled" />
+            Repetir em caso de falha
+          </label>
+          <div class="config-row hidden" id="cfgRetryOptions">
+            <label class="field">
+              Intervalo (horas)
+              <input type="number" id="cfgRetryHours" min="1" max="168" step="1" placeholder="Ex.: 2" />
+            </label>
+            <label class="field">
+              Máx. tentativas
+              <input type="number" id="cfgRetryMax" min="2" max="20" step="1" placeholder="Ex.: 3" />
+            </label>
+          </div>
+          <p class="field-hint" id="cfgNextRun"></p>
+        </fieldset>
+
+        <fieldset class="config-group">
+          <legend>E-mail</legend>
+          <label class="field">
+            Remetente (From)
+            <input type="email" id="cfgSmtpFrom" />
+          </label>
+          <label class="field">
+            Destinatário cliente (To)
+            <input type="text" id="cfgSmtpTo" placeholder="cliente@empresa.com" />
+          </label>
+          <label class="field">
+            Cópia (Cc)
+            <input type="text" id="cfgSmtpCc" />
+          </label>
+          <label class="field">
+            Alerta de falha
+            <input type="text" id="cfgSmtpAlert" />
+          </label>
+        </fieldset>
+
+        <p class="config-msg hidden" id="configMsg"></p>
+        <button type="submit" class="btn btn-secondary" id="btnSaveConfig">
+          Salvar configuração
+        </button>
+      </form>
+    </div>
+  </div>
+
   <script src="app.js"></script>
 </body>
 </html>

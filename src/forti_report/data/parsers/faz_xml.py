@@ -1,8 +1,10 @@
 """
 Parser de relatórios XML exportados pelo FortiAnalyzer.
 
-O layout XML varia por chart/schedule; este módulo será expandido conforme
-mapearmos os relatórios MENSAL / top-sites do ADOM CRUZ_AZUL.
+O layout XML varia por chart/schedule. Hoje o MENSAL unificado usa
+principalmente `mensal_json.py`; este módulo é fallback para download XML
+e será calibrado com amostras reais do schedule **MENSAL- RELATÓRIO GERAL**
+(Cruz Azul). Ver README → seção «Próximos passos».
 """
 
 from __future__ import annotations
@@ -31,10 +33,10 @@ def decode_faz_payload(data_field: str, *, data_type: str | None = None) -> byte
 
 def parse_report_xml_to_sections(xml_bytes: bytes) -> list[SectionData]:
     """
-    Extrai seções e ranking de sites do XML do FAZ.
+    Extrai seções do XML do FAZ.
 
-    Implementação inicial: placeholder que localiza tabelas genéricas.
-    Ajustar XPath/tags quando tivermos um XML de amostra do MENSAL.
+    Implementação inicial: placeholder (ranking genérico de sites).
+    Calibrar com XML real do MENSAL- RELATÓRIO GERAL — ver README «Próximos passos».
     """
     root = ET.fromstring(xml_bytes)
     items: list[SiteRankingItem] = []

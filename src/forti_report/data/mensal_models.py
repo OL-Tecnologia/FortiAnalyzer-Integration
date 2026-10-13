@@ -1,4 +1,4 @@
-"""Dados do relatório MENSAL- RELATÓRIO GERAL (por antena)."""
+"""Dados do relatório MENSAL- RELATÓRIO GERAL (por dispositivo)."""
 
 from __future__ import annotations
 
@@ -14,6 +14,22 @@ class TimelineSlice:
 
     label: str
     values: dict[str, float] = field(default_factory=dict)
+
+
+@dataclass
+class FazChartRecord:
+    """Bloco exportado pelo FAZ (chart ou macro) com prévia textual."""
+
+    title: str
+    chart_type: str = "chart"  # chart | macro
+    row_count: int = 0
+    mapped_field: str = ""
+    rendered_in_pdf: bool = False
+    preview_rows: list[list[str]] = field(default_factory=list)
+
+    @property
+    def is_mapped(self) -> bool:
+        return bool(self.mapped_field and self.mapped_field != "unmapped")
 
 
 @dataclass
@@ -58,6 +74,9 @@ class MensalGeralReport:
     policy_by_bandwidth: list[RankedItem] = field(default_factory=list)
     policy_by_session: list[RankedItem] = field(default_factory=list)
     policy_details: list[PolicyDetailRow] = field(default_factory=list)
+    faz_section_titles: list[str] = field(default_factory=list)
+    faz_charts: list[FazChartRecord] = field(default_factory=list)
+    content_source: str = ""  # json | pdf
     generated_at: datetime = field(default_factory=datetime.now)
 
     @property
@@ -75,4 +94,5 @@ class MensalGeralReport:
             or self.sdwan_apps
             or self.bandwidth_timeline
             or self.policy_details
+            or self.faz_charts
         )

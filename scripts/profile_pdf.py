@@ -33,7 +33,7 @@ def main() -> None:
     )
     print(
         f"fetch_hierarchy (metadata-only): {time.perf_counter() - t0:.2f}s "
-        f"| unidades={len(h.regional_units)} antenas={antennas} com_dados={with_data}"
+        f"| unidades={len(h.regional_units)} dispositivos={antennas} com_dados={with_data}"
     )
 
     _logo_png_for_width.cache_clear()

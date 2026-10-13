@@ -1,4 +1,4 @@
-"""Hierarquia Unidade regional → Antenas (FortiGates por site)."""
+"""Hierarquia: unidade regional → dispositivos (FortiGates por site)."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ REGION_LABELS: dict[str, str] = {
 
 @dataclass
 class AntennaInfo:
-    """Antena = site/dispositivo FortiGate."""
+    """Dispositivo FortiGate vinculado a uma unidade (site)."""
 
     device_name: str
     site_slug: str
@@ -39,7 +39,7 @@ class AntennaInfo:
 
 @dataclass
 class RegionalUnit:
-    """Unidade regional agrupando várias antenas."""
+    """Unidade regional agrupando dispositivos de várias unidades (sites)."""
 
     code: str
     display_name: str
@@ -54,17 +54,28 @@ class RegionalUnit:
         return sum(1 for a in self.antennas if a.report and a.report.faz_tid)
 
 
-def parse_device_name(device_name: str) -> tuple[str, str, str] | None:
+def parse_device_name(
+    device_name: str,
+    pattern: str | re.Pattern[str] | None = None,
+) -> tuple[str, str, str] | None:
     """
     Retorna (region_code, site_slug, device_type) ou None se não reconhecer.
     Ex.: fw-spo-cruz-azul-centro → ('spo', 'centro', 'fw')
     """
-    match = _DEVICE_PATTERN.match(device_name.strip())
+    compiled = _DEVICE_PATTERN
+    if pattern:
+        compiled = re.compile(pattern, re.IGNORECASE) if isinstance(pattern, str) else pattern
+    match = compiled.match(device_name.strip())
     if not match:
         return None
-    prefix = match.group("prefix")
+    groups = match.groupdict()
+    prefix = groups.get("prefix")
+    region = groups.get("region")
+    site = groups.get("site")
+    if not region or not site:
+        return None
     device_type = "hafw" if prefix else "fw"
-    return match.group("region").lower(), match.group("site").lower(), device_type
+    return region.lower(), site.lower(), device_type
 
 
 SITE_LABELS: dict[str, str] = {
@@ -90,12 +101,13 @@ def site_display_name(site_slug: str) -> str:
     return site_slug.replace("-", " ").strip().title()
 
 
-def region_display_name(code: str) -> str:
-    return REGION_LABELS.get(code.lower(), f"Unidade {code.upper()}")
+def region_display_name(code: str, labels: dict[str, str] | None = None) -> str:
+    mapping = labels if labels is not None else REGION_LABELS
+    return mapping.get(code.lower(), f"Unidade {code.upper()}")
 
 
 def regional_sites_label(unit: RegionalUnit) -> str:
-    """Lista legível das antenas da unidade: (Ambulatório, Colégio, ...)."""
+    """Lista legível das unidades (sites) da regional: (Ambulatório, Colégio, ...)."""
     names = [a.display_name for a in sorted(unit.antennas, key=lambda a: a.display_name.lower())]
     return f"({', '.join(names)})" if names else "—"
 
@@ -116,21 +128,34 @@ def platform_model(platform: str | None) -> str:
 def build_regional_hierarchy(
     devices: list[dict],
     reports_by_device: dict[str, UnitReport] | None = None,
+    *,
+    device_pattern: str | None = None,
+    region_labels: dict[str, str] | None = None,
 ) -> list[RegionalUnit]:
-    """Monta árvore unidade → antenas a partir da lista de devices do FAZ."""
+    """Monta árvore unidade regional → dispositivos a partir da lista de devices do FAZ."""
     reports_by_device = reports_by_device or {}
     buckets: dict[str, list[AntennaInfo]] = {}
+    # Hostname fora do padrão fw-{região}-{site} vira uma unidade com o próprio nome.
+    literal_titles: dict[str, str] = {}
 
     for dev in devices:
-        name = dev.get("name") or ""
-        parsed = parse_device_name(name)
-        if not parsed:
+        name = (dev.get("name") or "").strip()
+        if not name:
             continue
-        region, site, dtype = parsed
+        parsed = parse_device_name(name, device_pattern)
+        if parsed:
+            region, site, dtype = parsed
+            display = site_display_name(site)
+        else:
+            region = name.lower()
+            site = name.lower()
+            dtype = "fw"
+            display = name
+            literal_titles[region] = name
         antenna = AntennaInfo(
             device_name=name,
             site_slug=site,
-            display_name=site_display_name(site),
+            display_name=display,
             device_type=dtype,
             ip=dev.get("ip"),
             platform=dev.get("platform_str"),
@@ -145,7 +170,7 @@ def build_regional_hierarchy(
         units.append(
             RegionalUnit(
                 code=code,
-                display_name=region_display_name(code),
+                display_name=literal_titles.get(code) or region_display_name(code, region_labels),
                 antennas=antennas,
             )
         )

@@ -12,15 +12,22 @@ from forti_report.runtime_paths import bundled_config_env, project_root
 
 def _ensure_runtime() -> None:
     root = project_root()
-    for sub in ("output", "output/faz_mensal", "output/chart_cache"):
+    for sub in (
+        "output",
+        "output/faz_mensal",
+        "output/chart_cache",
+        "output/scheduler",
+        "output/logs",
+        "configs/clients",
+        "assets/clients",
+    ):
         (root / sub).mkdir(parents=True, exist_ok=True)
 
     env_file = root / ".env"
-    if env_file.is_file():
-        return
-    template = bundled_config_env()
-    if template and template.is_file():
-        shutil.copy2(template, env_file)
+    if not env_file.is_file():
+        template = bundled_config_env()
+        if template and template.is_file():
+            shutil.copy2(template, env_file)
 
 
 def _open_browser() -> None:

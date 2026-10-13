@@ -208,4 +208,5 @@ Integração com [frontend-mensal-cruz-azul.md](frontend-mensal-cruz-azul.md): m
 - Login FAZ atual: `src/forti_report/faz/client.py` (`login()` → `/sys/login/user`)  
 - Config: `src/forti_report/config.py`  
 - Frontend V1: `frontend/`, `doc/features/frontend-mensal-cruz-azul.md`  
-- Multi-cliente futuro: `doc/features/v2-multi-cliente-api-frontend.md`  
+- Multi-cliente / multi-tenant: `doc/features/multi-tenant-clientes-faz.md`  
+- Rascunho V2 (API): `doc/features/v2-multi-cliente-api-frontend.md`  

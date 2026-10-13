@@ -6,8 +6,9 @@ Catálogo das capacidades atuais do **fortiAnalyzer**. Detalhes em documentos fi
 
 | Status | Significado |
 |--------|-------------|
-| ✅ V1 | Disponível via CLI |
-| 📋 V2 | Planejado — ver [v2-multi-cliente-api-frontend.md](v2-multi-cliente-api-frontend.md) |
+| ✅ V1 | Disponível via CLI / portal |
+| 📋 Planejado | Spec pronta — ver documento filho |
+| 📋 V2 | Planejado (legado) — ver [v2-multi-cliente-api-frontend.md](v2-multi-cliente-api-frontend.md); **spec canônica multi-tenant:** [multi-tenant-clientes-faz.md](multi-tenant-clientes-faz.md) |
 
 ---
 
@@ -22,8 +23,9 @@ Catálogo das capacidades atuais do **fortiAnalyzer**. Detalhes em documentos fi
 | Filtro por schedule MENSAL | ✅ V1 | `FAZ_REPORT_SCHEDULE` |
 | ADOM configurável por `.env` | ✅ V1 | `FAZ_ADOM` |
 | Frontend web MENSAL (CRUZ_AZUL) | ✅ V1 | [frontend-mensal-cruz-azul.md](frontend-mensal-cruz-azul.md) |
-| Login FAZ (tela + sessão, sem `.env`) | 📋 Planejado | [login-faz-sessao.md](login-faz-sessao.md) |
-| Multi-ADOM / portal N clientes | 📋 V2 | [v2-multi-cliente-api-frontend.md](v2-multi-cliente-api-frontend.md) |
+| Login FAZ (tela + sessão, sem `.env`) | ✅ V1.1 | [login-faz-sessao.md](login-faz-sessao.md) |
+| Multi-tenant (sempre N tenants; SDE=1, OL=N; Super Admin + e-mail por client) | 🚧 Parcial | [multi-tenant-clientes-faz.md](multi-tenant-clientes-faz.md) — `PORTAL_ADMIN_PASSWORD` + `/admin.html` |
+| Multi-ADOM / portal N clientes (rascunho V2) | 📋 V2 | [v2-multi-cliente-api-frontend.md](v2-multi-cliente-api-frontend.md) — ver spec canônica acima |
 
 ---
 
@@ -32,10 +34,10 @@ Catálogo das capacidades atuais do **fortiAnalyzer**. Detalhes em documentos fi
 | Feature | Status | Documento / código |
 |---------|--------|-------------------|
 | Padrão de hostname Cruz Azul (`fw-{reg}-cruz-azul-{site}`) | ✅ V1 | `data/hierarchy.py` |
-| 6 unidades regionais, 11 antenas | ✅ V1 | `REGION_LABELS`, README raiz |
+| 6 unidades regionais, 11 dispositivos | ✅ V1 | `REGION_LABELS`, README raiz |
 | Parser JSON MENSAL GERAL (layout FAZ) | ✅ V1 | `data/parsers/mensal_json.py` |
 | Parser PDF MENSAL (fallback) | ✅ V1 | `data/parsers/mensal_pdf.py` |
-| Parser XML (legado / parcial) | ✅ V1 | `data/parsers/faz_xml.py` |
+| Parser XML (legado / parcial — calibrar com MENSAL real) | 🔧 Pendente | `data/parsers/faz_xml.py`, README «Próximos passos» |
 | Hierarquia configurável por cliente | 📋 V2 | v2 doc |
 
 ---
@@ -44,7 +46,7 @@ Catálogo das capacidades atuais do **fortiAnalyzer**. Detalhes em documentos fi
 
 | Feature | Status | Documento / código |
 |---------|--------|-------------------|
-| Cache JSON por antena (nome fixo) | ✅ V1 | [cache-e-fechamento-mensal.md](cache-e-fechamento-mensal.md) |
+| Cache JSON por dispositivo (nome fixo) | ✅ V1 | [cache-e-fechamento-mensal.md](cache-e-fechamento-mensal.md) |
 | Metadados `.meta.json` (TID + período) | ✅ V1 | `services/mensal_cache.py` |
 | Validação cache vs relatório atual FAZ | ✅ V1 | `json_cache_is_fresh` |
 | Cache gráficos por TID (sem misturar mês anterior) | ✅ V1 | `charts/plotly_charts.py` + prune |
@@ -57,7 +59,7 @@ Catálogo das capacidades atuais do **fortiAnalyzer**. Detalhes em documentos fi
 
 | Feature | Status | Documento / código |
 |---------|--------|-------------------|
-| PDF único 6 unidades + 11 antenas | ✅ V1 | [mensal-unificado.md](mensal-unificado.md) |
+| PDF único 6 unidades regionais + 11 dispositivos | ✅ V1 | [mensal-unificado.md](mensal-unificado.md) |
 | Capa com cabeçalho/rodapé PNG + texto + logo cliente | ✅ V1 | `pdf/cover_page.py` |
 | Sumário estilo FAZ com números de página | ✅ V1 | `pdf/mensal_toc.py`, `multiBuild` |
 | Cabeçalho interno + logo SVG transparente | ✅ V1 | [layout-pdf-branding.md](layout-pdf-branding.md) |
@@ -67,6 +69,10 @@ Catálogo das capacidades atuais do **fortiAnalyzer**. Detalhes em documentos fi
 | KeepTogether título + tabela + gráfico | ✅ V1 | `unified_mensal_builder.py` |
 | Gráficos Plotly (timeline, rosca, barras) | ✅ V1 | `charts/plotly_charts.py` |
 | Seções SD-WAN, políticas, risco, sites | ✅ V1 | `unified_mensal_builder.py` |
+| Resumo Executivo (global + por dispositivo) | ✅ V1 | `pdf/sections/resumo_executivo.py` |
+| Segurança Ampliada (painel consolidado) | ✅ V1 | `pdf/sections/seguranca.py` |
+| Cards KPI + donuts/gauge (layout executivo) | ✅ V1 | `pdf/kpi_cards.py`, `charts/plotly_charts.py` |
+| Referência FAZ (inventário — oculto no PDF cliente) | ✅ V1 | [decisao-conteudo-faz.md](../decisao-conteudo-faz.md) |
 
 ---
 
@@ -76,7 +82,7 @@ Catálogo das capacidades atuais do **fortiAnalyzer**. Detalhes em documentos fi
 |---------|--------|-------------------|
 | PDF por unidade regional (legado) | ✅ V1 | `pdf/regional_builder.py` |
 | PDF WAN semanal (6 unidades) | ✅ V1 | [relatorios-wan.md](relatorios-wan.md) |
-| PDF por antena individual (legado) | ✅ V1 | `pdf/builder.py`, CLI `generate` |
+| PDF por dispositivo individual (legado) | ✅ V1 | `pdf/builder.py`, CLI `generate` |
 | PDF demo fictício | ✅ V1 | CLI `demo` |
 
 ---
@@ -88,11 +94,16 @@ Catálogo das capacidades atuais do **fortiAnalyzer**. Detalhes em documentos fi
 | Otimização logo rasterizado + cache disco | ✅ V1 | [performance-geracao-pdf.md](performance-geracao-pdf.md) |
 | Hierarquia só de cache (sem FAZ) se metas válidas | ✅ V1 | `mensal_pipeline._fetch_hierarchy_from_cache` |
 | Script de profiling | ✅ V1 | `scripts/profile_pdf.py` |
+| Agendamento mensal + e-mail automático | ✅ V1 | [agendamento-email-mensal.md](agendamento-email-mensal.md) |
 
 ---
 
-## V2 — não implementado
+## Multi-tenant / V2 — não implementado
 
-Tudo relacionado a **vários clientes**, **frontend** e **API REST** está especificado apenas em:
+Spec canônica — **produto já multi-tenant** (SDE cadastra 1 tenant; OL atualiza para N; Super Admin; e-mail por tenant):
+
+**[multi-tenant-clientes-faz.md](multi-tenant-clientes-faz.md)**
+
+Rascunho anterior (API/tenant básico; complementar):
 
 **[v2-multi-cliente-api-frontend.md](v2-multi-cliente-api-frontend.md)**

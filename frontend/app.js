@@ -329,6 +329,163 @@ async function pollFallback(jobId) {
 btnGenerate.addEventListener("click", startGeneration);
 btnLogout.addEventListener("click", logout);
 
+function syncRetryOptions() {
+  const enabled = !!el("cfgRetryEnabled")?.checked;
+  const row = el("cfgRetryOptions");
+  if (row) {
+    row.classList.toggle("hidden", !enabled);
+  }
+}
+
+function fillConfigForm(data) {
+  el("cfgScheduleEnabled").checked = !!data.mensal_schedule_enabled;
+  el("cfgDay").value = data.mensal_schedule_day;
+  el("cfgHour").value = data.mensal_schedule_hour;
+  el("cfgMinute").value = data.mensal_schedule_minute;
+  el("cfgRetryEnabled").checked = data.mensal_schedule_retry_enabled !== false;
+  el("cfgRetryHours").value = data.mensal_schedule_retry_hours || 2;
+  el("cfgRetryMax").value = data.mensal_schedule_max_retries || 3;
+  syncRetryOptions();
+  el("cfgNextRun").textContent = data.next_run_at
+    ? `Próxima execução: ${data.next_run_at} (America/Sao_Paulo)`
+    : "Fuso: America/Sao_Paulo";
+  el("cfgSmtpFrom").value = data.smtp_from || "";
+  el("cfgSmtpTo").value = data.smtp_to || "";
+  el("cfgSmtpCc").value = data.smtp_cc || "";
+  el("cfgSmtpAlert").value = data.smtp_alert_to || "";
+}
+
+function showConfigMsg(text, ok) {
+  const box = el("configMsg");
+  if (!box) return;
+  box.textContent = text;
+  box.classList.remove("hidden", "is-ok", "is-error");
+  box.classList.add(ok ? "is-ok" : "is-error");
+}
+
+function hideConfigMsg() {
+  const box = el("configMsg");
+  if (!box) return;
+  box.textContent = "";
+  box.classList.add("hidden");
+  box.classList.remove("is-ok", "is-error");
+}
+
+async function loadAutomationConfig() {
+  const res = await fetch(apiUrl("/api/settings/automation"), API);
+  if (res.status === 401) {
+    window.location.href = "/login.html";
+    return false;
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    const detail = typeof err.detail === "string" ? err.detail : null;
+    throw new Error(detail || `Erro ao carregar configuração (${res.status})`);
+  }
+  fillConfigForm(await res.json());
+  hideConfigMsg();
+  return true;
+}
+
+async function saveAutomationConfig(ev) {
+  ev.preventDefault();
+  const btn = el("btnSaveConfig");
+  btn.disabled = true;
+  showConfigMsg("Salvando…", true);
+
+  const retryEnabled = el("cfgRetryEnabled").checked;
+  const retryHours = Number(el("cfgRetryHours").value);
+  const retryMax = Number(el("cfgRetryMax").value);
+
+  if (retryEnabled) {
+    if (!Number.isFinite(retryHours) || retryHours < 1 || retryHours > 168) {
+      showConfigMsg("Informe o intervalo em horas (1 a 168).", false);
+      btn.disabled = false;
+      return;
+    }
+    if (!Number.isFinite(retryMax) || retryMax < 2 || retryMax > 20) {
+      showConfigMsg("Informe o máximo de tentativas (2 a 20).", false);
+      btn.disabled = false;
+      return;
+    }
+  }
+
+  const body = {
+    mensal_schedule_enabled: el("cfgScheduleEnabled").checked,
+    mensal_schedule_day: Number(el("cfgDay").value),
+    mensal_schedule_hour: Number(el("cfgHour").value),
+    mensal_schedule_minute: Number(el("cfgMinute").value),
+    mensal_schedule_timezone: "America/Sao_Paulo",
+    mensal_schedule_retry_enabled: retryEnabled,
+    mensal_schedule_retry_hours: retryEnabled ? retryHours : undefined,
+    mensal_schedule_max_retries: retryEnabled ? retryMax : undefined,
+    smtp_from: el("cfgSmtpFrom").value.trim(),
+    smtp_to: el("cfgSmtpTo").value.trim(),
+    smtp_cc: el("cfgSmtpCc").value.trim(),
+    smtp_alert_to: el("cfgSmtpAlert").value.trim(),
+  };
+
+  try {
+    const res = await fetch(apiUrl("/api/settings/automation"), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(body),
+    });
+    if (res.status === 401) {
+      window.location.href = "/login.html";
+      return;
+    }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(typeof err.detail === "string" ? err.detail : "Falha ao salvar");
+    }
+    fillConfigForm(await res.json());
+    showConfigMsg("Configuração salva.", true);
+  } catch (err) {
+    showConfigMsg(err.message || "Erro ao salvar", false);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function openConfigModal() {
+  const modal = el("configModal");
+  if (!modal) return;
+  hideConfigMsg();
+  modal.classList.remove("hidden");
+  document.body.classList.add("modal-open");
+  try {
+    await loadAutomationConfig();
+  } catch (err) {
+    // Só alerta se a API/rede realmente falhou
+    if (err && err.message) {
+      showConfigMsg(err.message, false);
+    }
+  }
+}
+
+function closeConfigModal() {
+  const modal = el("configModal");
+  if (!modal) return;
+  modal.classList.add("hidden");
+  document.body.classList.remove("modal-open");
+}
+
+const configForm = el("configForm");
+if (configForm) {
+  configForm.addEventListener("submit", saveAutomationConfig);
+}
+el("cfgRetryEnabled")?.addEventListener("change", syncRetryOptions);
+el("btnOpenConfig")?.addEventListener("click", openConfigModal);
+el("btnCloseConfig")?.addEventListener("click", closeConfigModal);
+el("configModalBackdrop")?.addEventListener("click", closeConfigModal);
+document.addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape" && !el("configModal")?.classList.contains("hidden")) {
+    closeConfigModal();
+  }
+});
+
 (async () => {
   const me = await requireAuth();
   if (!me) return;

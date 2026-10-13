@@ -1,4 +1,4 @@
-"""PDF consolidado por unidade regional (várias antenas)."""
+"""PDF consolidado por unidade regional (vários dispositivos)."""
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ from forti_report.pdf.sections.registry import build_default_registry
 
 
 class RegionalPdfBuilder:
-    """Gera um PDF por unidade regional com seção por antena."""
+    """Gera um PDF por unidade regional com seção por dispositivo."""
 
     def __init__(
         self,
@@ -116,7 +116,7 @@ class _RegionalPdfDoc(BaseDocTemplate):
         entries = [
             Paragraph("Sumário", ParagraphStyle("H", parent=styles["Heading1"], textColor=colors.HexColor("#003366"))),
             Spacer(1, 0.3 * cm),
-            Paragraph('<a href="#resumo-unidade">Resumo da unidade</a>', styles["Normal"]),
+            Paragraph('<a href="#resumo-unidade">Resumo da unidade regional</a>', styles["Normal"]),
         ]
         for ant in self.unit.antennas:
             anchor = _antenna_anchor(ant)
@@ -146,7 +146,7 @@ class _RegionalPdfDoc(BaseDocTemplate):
         ]))
         return [
             Paragraph('<a name="resumo-unidade"/>', styles["Normal"]),
-            Paragraph("Resumo da unidade", styles["Heading1"]),
+            Paragraph("Resumo da unidade regional", styles["Heading1"]),
             Spacer(1, 0.3 * cm),
             table,
         ]
@@ -156,7 +156,11 @@ class _RegionalPdfDoc(BaseDocTemplate):
         anchor = _antenna_anchor(antenna)
         flow: list = [
             Paragraph(f'<a name="{anchor}"/>', styles["Normal"]),
-            Paragraph(f"Unidade: {antenna.display_name}", styles["Heading1"]),
+            Paragraph(
+                antenna.display_name,
+                ParagraphStyle("H", parent=styles["Heading1"], textColor=colors.HexColor("#003366")),
+            ),
+            Paragraph(f"<b>Unidade:</b> {antenna.display_name}", styles["Normal"]),
             Paragraph(f"<b>Dispositivo:</b> {antenna.device_name}", styles["Normal"]),
         ]
         if antenna.platform:
@@ -204,4 +208,4 @@ class _RegionalPdfDoc(BaseDocTemplate):
 
 
 def _antenna_anchor(antenna: AntennaInfo) -> str:
-    return f"antena-{antenna.site_slug.replace('-', '_')}"
+    return f"dispositivo-{antenna.site_slug.replace('-', '_')}"

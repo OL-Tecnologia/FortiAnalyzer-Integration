@@ -32,6 +32,28 @@ def assets_dir() -> Path:
     return bundle_root() / "assets"
 
 
+def resolve_asset_file(rel_path: str) -> Path | None:
+    """
+    Localiza arquivo sob assets/:
+    1) bundle (empacotado no .exe) — faixas OL, logos padrão
+    2) pasta gravável ao lado do .exe — uploads de clientes
+    """
+    rel = (rel_path or "").strip().replace("\\", "/").lstrip("/")
+    if not rel or ".." in rel.split("/"):
+        return None
+    if not rel.startswith("assets/"):
+        return None
+    for root in (bundle_root(), project_root()):
+        full = (root / rel).resolve()
+        try:
+            full.relative_to((root / "assets").resolve())
+        except ValueError:
+            continue
+        if full.is_file():
+            return full
+    return None
+
+
 def bundled_config_env() -> Path | None:
     candidate = bundle_root() / "install" / "config.env"
     if candidate.is_file():

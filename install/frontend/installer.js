@@ -98,7 +98,7 @@ async function loadPreflight() {
       showPanel(3);
     }
   } catch (err) {
-    showError("Nao foi possivel conectar ao instalador. Execute Instalar.bat.");
+    showError("Nao foi possivel conectar ao instalador. Execute install.bat.");
   }
 }
 
@@ -130,13 +130,13 @@ async function pollStatus() {
     if (data.status === "completed") {
       stopPoll();
       showPanel(3);
-      el("doneMessage").textContent = data.message || "Instalacao concluida.";
+      el("doneMessage").textContent = data.message || "Instalação concluída.";
       return;
     }
     if (data.status === "failed") {
       stopPoll();
       showPanel(1);
-      showError(data.error || data.message || "Falha na instalacao");
+      showError(data.error || data.message || "Falha na instalação");
     }
   } catch (err) {
     stopPoll();

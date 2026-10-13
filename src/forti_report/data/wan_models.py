@@ -29,7 +29,7 @@ class RankedItem:
 
 @dataclass
 class WanTrafficReport:
-    """Relatório WAN parseado (consolidado ou filtrado por antena/unidade)."""
+    """Relatório WAN parseado (consolidado ou filtrado por dispositivo/unidade regional)."""
 
     title: str = "Relatório Semanal Tráfego WAN"
     subtitle: str = ""
@@ -45,6 +45,8 @@ class WanTrafficReport:
     top_sites_by_browsing: list[RankedItem] = field(default_factory=list)
     top_apps_bandwidth: list[RankedItem] = field(default_factory=list)
     top_risk_users: list[RankedItem] = field(default_factory=list)
+    faz_section_titles: list = field(default_factory=list)
+    faz_charts: list = field(default_factory=list)
     generated_at: datetime = field(default_factory=datetime.now)
 
     @property

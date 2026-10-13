@@ -27,7 +27,8 @@ STEP_TO_PHASE: dict[str, str] = {
     "faz": "faz",
     "cache": "faz",
     "metadata": "faz",
-    "antenna": "faz",
+    "device": "faz",
+    "antenna": "faz",  # legado
     "hierarchy": "hierarchy",
     "pdf": "pdf",
     "finalize": "finalize",

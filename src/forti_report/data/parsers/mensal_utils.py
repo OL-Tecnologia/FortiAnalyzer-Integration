@@ -20,6 +20,18 @@ def filter_ranked(items: list[RankedItem], *, require_value: bool = True) -> lis
     return out
 
 
+def split_phishing_item(item: RankedItem) -> tuple[str, str]:
+    """Separa usuário e site (category ou rótulo 'usuário — site')."""
+    if (item.category or "").strip():
+        return item.label.strip(), item.category.strip()
+    text = (item.label or "").strip()
+    for sep in (" — ", " – ", " - ", " | "):
+        if sep in text:
+            left, right = text.split(sep, 1)
+            return left.strip(), right.strip()
+    return text, "—"
+
+
 def _has_metric(item: RankedItem) -> bool:
     if (item.percentage or "").strip():
         return True
@@ -134,3 +146,15 @@ def ranked_chart_values(items: list[RankedItem], *, max_items: int = 15) -> tupl
         labels.append(item.label[:50])
         values.append(num)
     return labels, values
+
+
+def block_rate_percent(allowed: str, blocked: str) -> str:
+    """Calcula taxa de bloqueio a partir de strings numéricas do FAZ."""
+    a = parse_numeric_value(allowed or "")
+    b = parse_numeric_value(blocked or "")
+    if a is None and b is None:
+        return ""
+    total = (a or 0) + (b or 0)
+    if total <= 0:
+        return ""
+    return f"{100.0 * (b or 0) / total:.1f}%"

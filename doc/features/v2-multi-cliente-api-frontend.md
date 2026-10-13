@@ -2,6 +2,7 @@
 
 **Status:** planejado — **não implementar na V1**  
 **Data do documento:** 2026-06  
+**Atualização:** 2026-08 — a spec canônica de multi-tenant (Super Admin, automação por tenant, deploy SDE on-prem vs painel OL) está em **[multi-tenant-clientes-faz.md](multi-tenant-clientes-faz.md)**. Este doc permanece como rascunho de API/tenant.  
 **Contexto:** A OL Tecnologia atende diversos clientes além do Cruz Azul. O backend atual (CLI + `.env` único) atende um ADOM por vez. O frontend exigirá seleção de cliente, relatório e geração sob demanda.
 
 ---
@@ -108,7 +109,7 @@ Credenciais FAZ podem ser **globais** (um usuário automação) ou **por cliente
 |--------|------|-----------|
 | GET | `/api/v1/clients` | Lista clientes configurados |
 | GET | `/api/v1/clients/{slug}` | Detalhe + status último PDF |
-| GET | `/api/v1/clients/{slug}/hierarchy` | Unidades/antenas + relatório vinculado |
+| GET | `/api/v1/clients/{slug}/hierarchy` | Unidades regionais/dispositivos + relatório vinculado |
 | POST | `/api/v1/clients/{slug}/reports/mensal/generate` | Body: `{ days, download, charts, force_download }` |
 | GET | `/api/v1/clients/{slug}/reports/mensal/latest` | Metadados (período, tid, data geração) |
 | GET | `/api/v1/clients/{slug}/reports/mensal/latest/download` | Stream PDF |

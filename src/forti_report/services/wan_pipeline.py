@@ -145,7 +145,7 @@ class WanReportPipeline:
             report_name=latest.get("name"),
             report_title=latest.get("title"),
             available_formats=list(latest.get("format") or []),
-            import_note="Relatório WAN consolidado (todas as antenas)",
+            import_note="Relatório WAN consolidado (todos os dispositivos)",
         )
         for ru in units:
             for ant in ru.antennas:

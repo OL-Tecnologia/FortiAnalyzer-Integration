@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Administração — FortiAnalyzer</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="page page-wide">
+    <header class="header">
+      <div class="brand">
+        <span class="brand-tag">OL Tecnologia</span>
+        <h1>Administração multi-tenant</h1>
+      </div>
+      <div class="header-actions">
+        <a class="btn btn-ghost btn-sm" href="/login.html">Voltar ao login</a>
+        <button type="button" class="btn btn-ghost btn-sm hidden" id="btnAdminLogout">Sair admin</button>
+      </div>
+    </header>
+
+    <section class="card" id="adminLoginCard">
+      <p class="lead">
+        Acesso Super Admin para cadastrar clientes (FAZ, ADOM, branding, e-mail automático).
+        Senha padrão da instalação limpa: <code>AltereEstaSenha</code>
+        (arquivo <code>.env</code> ao lado do .exe → <code>PORTAL_ADMIN_PASSWORD</code>).
+      </p>
+      <form id="adminLoginForm" class="login-form" autocomplete="off">
+        <label class="field">
+          <span>Senha Super Admin</span>
+          <input type="password" id="adminPassword" required autocomplete="current-password" />
+        </label>
+        <button type="submit" class="btn btn-primary btn-block" id="btnAdminLogin">Entrar</button>
+      </form>
+      <p class="error hidden" id="adminLoginError"></p>
+    </section>
+
+    <section class="card hidden" id="adminPanel">
+      <div class="admin-toolbar">
+        <h2>Clientes (tenants)</h2>
+        <button type="button" class="btn btn-secondary" id="btnNewClient">Novo cliente</button>
+      </div>
+      <ul class="client-list" id="clientList"></ul>
+
+      <form id="clientForm" class="config-form hidden" autocomplete="off">
+        <h3 id="clientFormTitle">Novo cliente</h3>
+        <fieldset class="config-group">
+          <legend>Identificação</legend>
+          <div class="config-row">
+            <label class="field">
+              Slug
+              <input type="text" id="cfgSlug" required pattern="[a-z0-9][a-z0-9_-]*" placeholder="meu_cliente" />
+            </label>
+            <label class="field">
+              Nome de exibição
+              <input type="text" id="cfgDisplayName" required placeholder="Nome do cliente" />
+            </label>
+          </div>
+          <label class="check">
+            <input type="checkbox" id="cfgEnabled" checked />
+            Cliente habilitado
+          </label>
+        </fieldset>
+
+        <fieldset class="config-group">
+          <legend>FortiAnalyzer</legend>
+          <div class="config-row">
+            <label class="field">
+              Host / IP
+              <input type="text" id="cfgFazHost" required placeholder="10.224.17.20" />
+            </label>
+            <label class="field">
+              Porta
+              <input type="number" id="cfgFazPort" min="1" max="65535" value="8090" required />
+            </label>
+          </div>
+          <p class="field-hint">
+            Use só o IP/hostname (ex.: <code>10.224.17.20</code>). Se colar URL com
+            <code>https://</code>, o sistema remove o protocolo automaticamente.
+          </p>
+          <label class="field">
+            ADOM
+            <input type="text" id="cfgFazAdom" required />
+          </label>
+          <label class="field">
+            Schedule MENSAL
+            <input type="text" id="cfgFazSchedule" value="MENSAL-RELATÓRIO DE ENDPOINT" />
+          </label>
+          <div class="config-row">
+            <label class="check">
+              <input type="checkbox" id="cfgFazSsl" checked />
+              SSL
+            </label>
+            <label class="check">
+              <input type="checkbox" id="cfgFazVerifySsl" />
+              Verificar certificado SSL
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset class="config-group">
+          <legend>Conta de automação (e-mail mensal)</legend>
+          <label class="field">
+            Usuário FAZ (serviço)
+            <input type="text" id="cfgAutoUser" />
+          </label>
+          <label class="field">
+            Senha FAZ (serviço)
+            <input type="password" id="cfgAutoPassword" placeholder="Preencha para gravar / testar" autocomplete="new-password" />
+          </label>
+          <p class="field-hint" id="cfgAutoPasswordHint"></p>
+        </fieldset>
+
+        <fieldset class="config-group">
+          <legend>Agendamento</legend>
+          <label class="check">
+            <input type="checkbox" id="cfgSchedEnabled" />
+            Habilitar envio automático
+          </label>
+          <div class="config-row">
+            <label class="field">Dia<input type="number" id="cfgSchedDay" min="1" max="28" value="5" /></label>
+            <label class="field">Hora<input type="number" id="cfgSchedHour" min="0" max="23" value="6" /></label>
+            <label class="field">Minuto<input type="number" id="cfgSchedMinute" min="0" max="59" value="0" /></label>
+          </div>
+        </fieldset>
+
+        <fieldset class="config-group">
+          <legend>E-mail</legend>
+          <label class="field">From<input type="email" id="cfgSmtpFrom" /></label>
+          <label class="field">To<input type="text" id="cfgSmtpTo" /></label>
+          <label class="field">Cc<input type="text" id="cfgSmtpCc" /></label>
+          <label class="field">Alerta<input type="text" id="cfgSmtpAlert" /></label>
+          <label class="field">Prefixo do assunto<input type="text" id="cfgEmailPrefix" /></label>
+        </fieldset>
+
+        <fieldset class="config-group">
+          <legend>Branding</legend>
+          <p class="field-hint">
+            A prévia reproduz a capa do PDF. As <strong>faixas superior e inferior OL</strong> são
+            padrão fixo (não editáveis). Por cliente mudam só o <strong>logo</strong> e
+            ADOM/nome; unidades vêm do FAZ; mês/ano do relatório.
+          </p>
+
+          <div class="branding-layout">
+            <div class="branding-controls">
+              <div class="asset-upload">
+                <label class="field">
+                  Logo do cliente (miolo da capa)
+                  <input type="file" id="cfgLogoFile" accept=".png,.jpg,.jpeg,.svg,.webp,image/*" />
+                </label>
+                <input type="hidden" id="cfgLogo" />
+                <p class="field-hint" id="cfgLogoPath"></p>
+              </div>
+              <div class="logo-layout-controls">
+                <p class="field-hint">Tamanho e posição do logo na capa</p>
+                <label class="field">
+                  Largura (cm)
+                  <input type="number" id="cfgLogoWidth" min="0.5" max="10" step="0.1" value="2.1" />
+                </label>
+                <label class="field">
+                  Alinhamento
+                  <select id="cfgLogoAlign">
+                    <option value="left">Esquerda</option>
+                    <option value="center">Centro</option>
+                    <option value="right" selected>Direita</option>
+                  </select>
+                </label>
+                <div class="config-row">
+                  <label class="field">
+                    Offset X (cm)
+                    <input type="number" id="cfgLogoOffsetX" min="-5" max="5" step="0.1" value="0" />
+                  </label>
+                  <label class="field">
+                    Offset Y (cm)
+                    <input type="number" id="cfgLogoOffsetY" min="0" max="8" step="0.1" value="0.35" />
+                  </label>
+                </div>
+                <p class="field-hint">
+                  X positivo = direita · Y positivo = sobe (afasta da faixa inferior)
+                </p>
+              </div>
+              <input type="hidden" id="cfgCoverHeader" value="assets/img/cabecalho_capa.png" />
+              <input type="hidden" id="cfgCoverFooter" value="assets/img/rodape_capa.png" />
+              <p class="field-hint">
+                Faixas OL fixas: <code>cabecalho_capa.png</code> / <code>rodape_capa.png</code>
+              </p>
+            </div>
+
+            <div class="cover-viewer">
+              <div class="cover-viewer-head">
+                <strong>Prévia da capa (A4)</strong>
+                <div class="cover-viewer-actions">
+                  <button type="button" class="btn btn-ghost btn-sm" id="btnRefreshCoverPreview">
+                    Atualizar
+                  </button>
+                  <button
+                    type="button"
+                    class="btn-icon"
+                    id="btnDownloadCoverPreview"
+                    title="Baixar PDF (capa + rodapé)"
+                    aria-label="Baixar PDF (capa + rodapé)"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                      <polyline points="7 10 12 15 17 10"></polyline>
+                      <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div class="cover-a4-frame">
+                <div class="cover-a4" id="coverPreview" aria-label="Prévia da capa do PDF">
+                  <div class="cover-a4-band cover-a4-band-top">
+                    <img id="previewHeader" class="cover-a4-band-img" alt="Faixa superior" />
+                  </div>
+                  <div class="cover-a4-middle">
+                    <div class="cover-a4-text">
+                      <p class="cover-a4-title" id="previewTitle">RELATÓRIO MENSAL  GERAL</p>
+                      <p class="cover-a4-sub" id="previewSubtitle">Relatório Unificado — …</p>
+                      <p class="cover-a4-meta" id="previewUnits">
+                        N unidades regionais · N dispositivos
+                      </p>
+                      <p class="cover-a4-meta" id="previewMonth"></p>
+                    </div>
+                    <div class="cover-a4-logo-row">
+                      <img id="previewLogo" class="cover-a4-logo hidden" alt="" />
+                      <span class="cover-a4-placeholder cover-a4-logo-ph" id="previewLogoPh">Logo</span>
+                    </div>
+                  </div>
+                  <div class="cover-a4-band cover-a4-band-bottom">
+                    <img id="previewFooter" class="cover-a4-band-img" alt="Faixa inferior" />
+                  </div>
+                </div>
+              </div>
+              <ul class="cover-legend">
+                <li><strong>Faixas OL</strong> — padrão fixo (não alteram por cliente)</li>
+                <li><strong>Logo cliente</strong> — upload + largura / alinhamento / offsets</li>
+                <li><strong>Nome de exibição</strong> — subtítulo da capa</li>
+                <li><strong>Unidades / mês</strong> — FAZ e período (na geração)</li>
+                <li>
+                  <strong>Baixar PDF</strong> — página 1 = capa; página 2 = cabeçalho/rodapé do corpo
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="field">
+            <div class="field-label-row">
+              <span>Pattern devices</span>
+              <details class="help-details">
+                <summary
+                  class="help-icon"
+                  title="O que é Pattern devices?"
+                  aria-label="Instruções sobre Pattern devices"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M12 16v-4"></path>
+                    <path d="M12 8h.01"></path>
+                  </svg>
+                </summary>
+                <div class="help-panel">
+                  <p><strong>O que é?</strong> Uma expressão regular (regex) criada <em>neste sistema</em> — não existe no FortiGate/FortiAnalyzer.</p>
+                  <p><strong>Para que serve?</strong> Ler o <em>hostname</em> dos dispositivos no FAZ e montar a hierarquia do PDF (região → site → device).</p>
+                  <p><strong>O que faz?</strong> Só entram no relatório unificado os devices cujo nome casar com o pattern.</p>
+                  <p><strong>Como preencher:</strong></p>
+                  <ol class="help-steps">
+                    <li>No FortiAnalyzer do <em>cliente que está cadastrando</em>, anote 1–2 hostnames reais dos FortiGates (ex.: <code>fw-norte-matriz</code>).</li>
+                    <li>Identifique no nome a <em>região</em> e o <em>site</em> (partes que mudam entre devices).</li>
+                    <li>Monte a regex com grupos obrigatórios <code>(?P&lt;region&gt;...)</code> e <code>(?P&lt;site&gt;...)</code>. Opcional: <code>(?P&lt;prefix&gt;hafw\d+)</code> para HA.</li>
+                    <li>Partes fixas do nome do cliente escreva como literais; partes variáveis use <code>[a-z]+</code>, <code>[a-z0-9]+</code> ou <code>.+</code>.</li>
+                    <li>Teste mentalmente: o hostname deve casar inteiro (a regex começa com <code>^</code> e termina com <code>$</code>).</li>
+                    <li>Cada tenant tem o próprio pattern. Não reutilize naming de outro cliente. Se deixar vazio, o sistema aplica um padrão genérico — ajuste sempre ao naming deste FAZ.</li>
+                  </ol>
+                  <p><strong>Exemplo ilustrativo</strong> (hostname fictício <code>fw-norte-matriz</code>):</p>
+                  <code class="help-code">^(?:(?P&lt;prefix&gt;hafw\d+)|fw)-(?P&lt;region&gt;[a-z0-9]+)-(?P&lt;site&gt;.+)$</code>
+                  <p class="help-result">→ região = <code>norte</code>, site = <code>matriz</code></p>
+                  <p><strong>Exemplo com trecho fixo do cliente</strong> (<code>fw-sul-empresa-filial01</code>):</p>
+                  <code class="help-code">^(?:(?P&lt;prefix&gt;hafw\d+)|fw)-(?P&lt;region&gt;[a-z]+)-empresa-(?P&lt;site&gt;.+)$</code>
+                  <p class="help-result">→ região = <code>sul</code>, site = <code>filial01</code> (troque <code>empresa</code> pelo literal real deste cliente)</p>
+                </div>
+              </details>
+            </div>
+            <input type="text" id="cfgDevicePattern" placeholder="Regex dos hostnames FortiGate" />
+          </div>
+        </fieldset>
+
+        <p class="config-msg hidden" id="adminMsg"></p>
+        <div class="admin-actions">
+          <button type="button" class="btn btn-ghost" id="btnTestConn">Testar conexão</button>
+          <button type="submit" class="btn btn-primary" id="btnSaveClient">Testar e salvar</button>
+          <button type="button" class="btn btn-ghost" id="btnCancelClient">Cancelar</button>
+        </div>
+      </form>
+    </section>
+  </div>
+  <script src="admin.js"></script>
+</body>
+</html>

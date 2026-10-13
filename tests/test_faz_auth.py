@@ -68,3 +68,17 @@ def test_authenticate_faz_invalid(mock_client_cls):
 
     with pytest.raises(FazAuthError, match="Credenciais inválidas"):
         authenticate_faz("user1", "wrong", get_settings())
+
+
+@patch("forti_report.faz.auth.FortiAnalyzerClient")
+def test_authenticate_faz_timeout(mock_client_cls):
+    import httpx
+    from forti_report.faz.auth import FazConnectionError
+    from forti_report.config import get_settings
+
+    mock_client = MagicMock()
+    mock_client.login.side_effect = httpx.ConnectTimeout("timed out")
+    mock_client_cls.return_value.__enter__.return_value = mock_client
+
+    with pytest.raises(FazConnectionError, match="Timeout"):
+        authenticate_faz("user1", "pass1", get_settings())

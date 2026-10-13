@@ -9,7 +9,8 @@ import unicodedata
 from datetime import datetime
 from typing import Any
 
-from forti_report.data.mensal_models import MensalGeralReport, PolicyDetailRow, TimelineSlice
+from forti_report.data.mensal_models import FazChartRecord, MensalGeralReport, PolicyDetailRow, TimelineSlice
+from forti_report.data.parsers.faz_inventory import build_inventory_from_json_charts
 from forti_report.data.parsers.mensal_utils import filter_ranked
 from forti_report.data.wan_models import RankedItem, WebUsageSummary
 
@@ -60,6 +61,10 @@ def parse_mensal_json(raw: bytes, *, device_name: str = "") -> MensalGeralReport
         if not rows:
             continue
         _assign_chart(report, title, rows)
+
+    if isinstance(charts, list):
+        report.faz_section_titles, report.faz_charts = build_inventory_from_json_charts(charts)
+        report.content_source = "json"
 
     _enrich_summary_from_macros(report)
     return report
@@ -179,9 +184,7 @@ def _assign_chart(report: MensalGeralReport, title: str, rows: list) -> None:
         return
 
     if "phishing" in t and ("vitima" in t or "site" in t):
-        report.phishing_victims = filter_ranked(
-            _rows_to_ranked(rows, label_hint="phishing", value_hint="requests")[:25]
-        )
+        report.phishing_victims = filter_ranked(_parse_phishing_rows(rows)[:25])
         return
 
     if "sites de risco" in t or "acessam sites de risco" in t:
@@ -218,7 +221,12 @@ def _assign_chart(report: MensalGeralReport, title: str, rows: list) -> None:
 
     if "aplicativos web" in t and "banda" in t:
         report.top_web_apps = filter_ranked(
-            _rows_to_ranked(rows, label_hint="application", value_hint="requests")[:15]
+            _rows_to_ranked(
+                rows,
+                label_hint="application",
+                value_hint="requests",
+                category_keys=("Technology", "Risk", "Category", "Categoria"),
+            )[:15]
         )
         return
 
@@ -414,12 +422,54 @@ def _all_value_keys() -> set[str]:
     return out
 
 
+def _parse_phishing_rows(rows: list) -> list[RankedItem]:
+    """Usuário em label, site em category — tabela multi-coluna no PDF."""
+    items: list[RankedItem] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        cols_list = row.get("cols") or []
+        if not cols_list:
+            continue
+        cols = {c.get("name", ""): (c.get("value") or "").strip() for c in cols_list}
+        user = (
+            cols.get("User")
+            or cols.get("Usuário")
+            or cols.get("Usuario")
+            or cols.get("Victim")
+            or ""
+        )
+        site = (
+            cols.get("Site Phishing")
+            or cols.get("Site")
+            or cols.get("URL")
+            or cols.get("Hostname")
+            or ""
+        )
+        if not user and not site:
+            continue
+        value = _pick_value(cols_list, cols, "requests").strip()
+        pct = _pick_percent(cols)
+        rank = int(row.get("id") or len(items) + 1)
+        items.append(
+            RankedItem(
+                rank=rank,
+                label=user or site,
+                value=value,
+                percentage=pct,
+                category=site if user else "",
+            )
+        )
+    return items
+
+
 def _rows_to_ranked(
     rows: list,
     *,
     label_hint: str = "generic",
     value_hint: str = "requests",
     combine_user: bool = False,
+    category_keys: tuple[str, ...] = ("Category", "Categories", "Categoria"),
 ) -> list[RankedItem]:
     items: list[RankedItem] = []
     for row in rows:
@@ -435,7 +485,11 @@ def _rows_to_ranked(
             label = f"{label} — {cols['User']}"
         value = _pick_value(cols_list, cols, value_hint).strip()
         pct = _pick_percent(cols)
-        category = cols.get("Category", cols.get("Categories", cols.get("Categoria", "")))
+        category = ""
+        for key in category_keys:
+            if cols.get(key):
+                category = cols[key]
+                break
         if label:
             items.append(
                 RankedItem(rank=rank, label=label, value=value, percentage=pct, category=category)

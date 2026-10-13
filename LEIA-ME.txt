@@ -1,8 +1,8 @@
-FortiAnalyzer Reports - Cruz Azul
-==================================
+FortiAnalyzer Reports — OL Tecnologia
+=====================================
 
-VERSAO COMPILADA (.exe) — RECOMENDADO PARA O TIME
--------------------------------------------------
+VERSÃO COMPILADA (.exe) — MULTI-TENANT (INSTALAÇÃO LIMPA)
+--------------------------------------------------------
 
   Pasta: dist\FortiAnalyzer-Reports\
 
@@ -11,31 +11,41 @@ VERSAO COMPILADA (.exe) — RECOMENDADO PARA O TIME
       FortiAnalyzer-Reports.exe
 
   O portal abre em http://localhost:8000/login.html
-  Nao precisa de Python nem instalacao.
 
-  Na primeira execucao, o .env e criado automaticamente (config Cruz Azul).
-  Credenciais FAZ: informe no login do portal.
+  Esta distribuição NÃO embute FAZ, ADOM, e-mails nem logos de clientes (LGPD).
 
 
-DESENVOLVIMENTO / INSTALACAO POR CODIGO-FONTE
----------------------------------------------
+  PRIMEIRO USO
+  ------------
+  1. Abra http://localhost:8000/admin.html
+  2. Senha Super Admin padrão: AltereEstaSenha
+     (troque no arquivo .env ao lado do .exe: PORTAL_ADMIN_PASSWORD=...)
+  3. Cadastre o cliente (host FAZ, ADOM, logo, e-mail, automação)
+  4. No login do operador, selecione o cliente e use usuário/senha do FAZ
 
-  1. Duplo clique em install.bat (assistente em http://127.0.0.1:8765)
+
+  Distribua a pasta FortiAnalyzer-Reports\ inteira (não copie só o .exe).
+
+
+DESENVOLVIMENTO / CÓDIGO-FONTE
+-----------------------------
+
+  1. Duplo clique em install.bat
   2. Ou: py -3 -m venv .venv && pip install -e .
-  3. Uso diario: FortiAnalyzer Reports.bat
+  3. Uso diário: FortiAnalyzer Reports.bat
 
 
-COMPILAR O .EXE (EQUIPE DE DESENVOLVIMENTO)
------------------------------------------
+COMPILAR O .EXE
+---------------
 
   powershell -ExecutionPolicy Bypass -File install\build_app.ps1
 
-  Gera dist\FortiAnalyzer-Reports\ para distribuir ao time.
+  Gera dist\FortiAnalyzer-Reports\ (já sanitizado: sem tenants/clientes).
 
 
-REQUISITO (somente versao por codigo-fonte)
--------------------------------------------
-  Python 3.11+ com "Add to PATH"
-  https://www.python.org/downloads/
+LGPD
+----
 
-Suporte: OL Tecnologia
+  - Não versionar .env com senhas ou e-mails reais
+  - Tenants ficam em configs\clients\*.yaml (criados no admin)
+  - Senhas de automação em configs\clients\.secrets\

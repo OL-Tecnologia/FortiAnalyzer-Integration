@@ -57,7 +57,7 @@ class _WanPdfDoc(BaseDocTemplate):
         ("navegacao", "Navegação Web — Tempo por Categoria"),
         ("top-sites", "Top 20 Sites por Tempo de Navegação"),
         ("risco", "Principais Usuários — Sites de Risco"),
-        ("dispositivos", "Dispositivos da Unidade"),
+        ("dispositivos", "Dispositivos da unidade regional"),
     ]
 
     def __init__(self, filename: str, *, settings: Settings, unit: RegionalUnit, wan: WanTrafficReport):
@@ -208,7 +208,7 @@ class _WanPdfDoc(BaseDocTemplate):
             except Exception:
                 pass
         else:
-            flow.append(Paragraph("Sem dados filtrados para esta unidade.", styles["Italic"]))
+            flow.append(Paragraph("Sem dados filtrados para esta unidade regional.", styles["Italic"]))
         return flow
 
     def _section_categories(self):
@@ -271,7 +271,7 @@ class _WanPdfDoc(BaseDocTemplate):
             except Exception:
                 pass
         else:
-            flow.append(Paragraph("Sem sites para esta unidade.", styles["Italic"]))
+            flow.append(Paragraph("Sem sites para esta unidade regional.", styles["Italic"]))
         return flow
 
     def _section_risk(self):
@@ -294,7 +294,7 @@ class _WanPdfDoc(BaseDocTemplate):
             rows.append(device_table_row(a))
         return [
             Paragraph('<a name="dispositivos"/>', styles["Normal"]),
-            Paragraph(f"Dispositivos da Unidade ({len(self.unit.antennas)})", styles["Heading1"]),
+            Paragraph(f"Dispositivos da unidade regional ({len(self.unit.antennas)})", styles["Heading1"]),
             Spacer(1, 0.3 * cm),
             _styled_table(rows, [2.0 * cm, 3.5 * cm, 1.8 * cm, 1.0 * cm, 1.1 * cm, 1.2 * cm, 0.9 * cm]),
         ]

@@ -22,6 +22,8 @@ from forti_report.data.wan_models import RankedItem
 
 # Paleta corporativa (barras / destaque)
 CHART_COLORS = ["#003366", "#0066A1", "#4A90C2", "#7EB6DA", "#B8D4E8"]
+# Incrementar ao mudar layout dos gráficos — invalida PNG em chart_cache/
+CHART_CACHE_VERSION = "v5-charts-gap"
 
 # Cores distintas para séries em gráficos de linha (não apenas tons de azul)
 LINE_SERIES_COLORS = [
@@ -127,7 +129,9 @@ def chart_to_png_bytes(
             cache_dir = chart_scope_dir(settings, cache_scope)
             cache_dir.mkdir(parents=True, exist_ok=True)
             scope_part = f"{cache_scope}|"
-        digest = hashlib.sha256(f"{scope_part}{cache_key}|{w}|{h}".encode()).hexdigest()[:24]
+        digest = hashlib.sha256(
+            f"{CHART_CACHE_VERSION}|{scope_part}{cache_key}|{w}|{h}".encode()
+        ).hexdigest()[:24]
         cache_path = cache_dir / f"{digest}.png"
         if cache_path.is_file():
             return cache_path.read_bytes()
@@ -138,11 +142,17 @@ def chart_to_png_bytes(
     return png
 
 
-def top_users_bar_chart(items: list[RankedItem], *, title: str = "Top usuários") -> go.Figure | None:
+def top_users_bar_chart(
+    items: list[RankedItem],
+    *,
+    title: str = "Top usuários",
+    color: str | None = None,
+) -> go.Figure | None:
     labels, values = ranked_chart_values(items, max_items=10)
     if not labels:
         return None
-    fig = go.Figure(go.Bar(x=values, y=labels, orientation="h", marker=dict(color=CHART_COLORS[1])))
+    bar_color = color or CHART_COLORS[1]
+    fig = go.Figure(go.Bar(x=values, y=labels, orientation="h", marker=dict(color=bar_color)))
     fig.update_layout(
         title=dict(text=title, x=0.5, xanchor="center"),
         xaxis_title="Requisições",
@@ -154,13 +164,140 @@ def top_users_bar_chart(items: list[RankedItem], *, title: str = "Top usuários"
     return fig
 
 
+def create_donut_chart(
+    labels: list[str],
+    values: list[float],
+    *,
+    title: str = "",
+    colors: list[str] | None = None,
+) -> go.Figure | None:
+    pairs = [(lab, val) for lab, val in zip(labels, values) if val and val > 0]
+    if not pairs:
+        return None
+    labs, vals = zip(*pairs)
+    fig = go.Figure(
+        go.Pie(
+            labels=list(labs),
+            values=list(vals),
+            hole=0.42,
+            marker=dict(
+                colors=colors or PIE_COLORS,
+                line=dict(color="#FFFFFF", width=2),  # espaçamento entre fatias
+            ),
+            textinfo="label+percent",
+            textposition="outside",
+            insidetextorientation="horizontal",
+            automargin=True,
+        )
+    )
+    fig.update_layout(
+        title=dict(text=title, x=0.5, xanchor="center") if title else None,
+        template="plotly_white",
+        height=450,
+        width=760,
+        margin=dict(l=64, r=64, t=60 if title else 32, b=80),
+        showlegend=True,
+        legend=dict(orientation="h", y=-0.12, x=0.5, xanchor="center"),
+        uniformtext_minsize=10,
+        uniformtext_mode="hide",
+    )
+    return fig
+
+
 def category_pie_chart(items: list[RankedItem], *, title: str = "Categorias") -> go.Figure | None:
     labels, values = pie_values_from_items(items)
     if not labels:
         return None
-    fig = go.Figure(go.Pie(labels=labels, values=values, hole=0.35, marker=dict(colors=PIE_COLORS)))
-    fig.update_layout(title=dict(text=title, x=0.5), template="plotly_white", height=350)
+    return create_donut_chart(labels, values, title=title)
+
+
+def status_donut_chart(
+    *,
+    online: int,
+    offline: int,
+    title: str = "Status dos dispositivos",
+) -> go.Figure | None:
+    return create_donut_chart(
+        ["Online", "Offline"],
+        [float(max(online, 0)), float(max(offline, 0))],
+        title=title,
+        colors=["#2A9D8F", "#E63946"],
+    )
+
+
+def allowed_blocked_donut(
+    allowed: float | int | None,
+    blocked: float | int | None,
+    *,
+    title: str = "Requisições — Permitidas vs Bloqueadas",
+) -> go.Figure | None:
+    a = float(allowed or 0)
+    b = float(blocked or 0)
+    if a <= 0 and b <= 0:
+        return None
+    return create_donut_chart(
+        ["Permitidas", "Bloqueadas"],
+        [a, b],
+        title=title,
+        colors=["#0066A1", "#E63946"],
+    )
+
+
+def create_gauge(
+    value: float,
+    *,
+    title: str = "Disponibilidade",
+    suffix: str = "%",
+    max_value: float = 100.0,
+) -> go.Figure | None:
+    """Gauge Plotly (go.Indicator) para percentuais de disponibilidade."""
+    if value is None:
+        return None
+    fig = go.Figure(
+        go.Indicator(
+            mode="gauge+number",
+            value=float(value),
+            number={"suffix": suffix, "font": {"size": 28, "color": "#003366"}},
+            title={"text": title, "font": {"size": 13, "color": "#003366"}},
+            gauge={
+                "axis": {"range": [0, max_value], "tickwidth": 1},
+                "bar": {"color": "#0066A1"},
+                "bgcolor": "#F0F4F8",
+                "borderwidth": 1,
+                "bordercolor": "#D0DCE8",
+                "steps": [
+                    {"range": [0, 70], "color": "#FADBD8"},
+                    {"range": [70, 90], "color": "#FCF3CF"},
+                    {"range": [90, max_value], "color": "#D5F5E3"},
+                ],
+                "threshold": {
+                    "line": {"color": "#E63946", "width": 2},
+                    "thickness": 0.75,
+                    "value": 90,
+                },
+            },
+        )
+    )
+    fig.update_layout(
+        template="plotly_white",
+        height=260,
+        margin=dict(l=30, r=30, t=50, b=20),
+    )
     return fig
+
+
+def parse_availability_percent(raw: str | None) -> float | None:
+    """Extrai percentual de strings FAZ (ex.: '100%', '99.5 %')."""
+    if not raw:
+        return None
+    text = str(raw).strip().replace("%", "").replace(",", ".")
+    try:
+        val = float(text.split()[0])
+    except (ValueError, IndexError):
+        return None
+    if val < 0 or val > 100:
+        return None
+    return val
 
 
 def bandwidth_timeline_chart(
@@ -243,6 +380,7 @@ def ranked_horizontal_chart(
     title: str,
     value_label: str = "Valor",
     max_items: int = 15,
+    color: str | None = None,
 ) -> go.Figure | None:
     labels, values = ranked_chart_values(items, max_items=max_items)
     if not labels:
@@ -252,7 +390,7 @@ def ranked_horizontal_chart(
             x=values,
             y=labels,
             orientation="h",
-            marker=dict(color=CHART_COLORS[2]),
+            marker=dict(color=color or CHART_COLORS[2]),
         )
     )
     fig.update_layout(
@@ -264,6 +402,24 @@ def ranked_horizontal_chart(
         margin=dict(l=140, r=40, t=50, b=40),
     )
     return fig
+
+
+def create_bar_chart(
+    items: list[RankedItem],
+    *,
+    title: str,
+    value_label: str = "Valor",
+    max_items: int = 10,
+    color: str | None = None,
+) -> go.Figure | None:
+    """Barra horizontal reutilizável (alias semântico de ranked_horizontal_chart)."""
+    return ranked_horizontal_chart(
+        items,
+        title=title,
+        value_label=value_label,
+        max_items=max_items,
+        color=color,
+    )
 
 
 def traffic_timeline_placeholder() -> go.Figure:

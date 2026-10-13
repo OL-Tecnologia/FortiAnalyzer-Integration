@@ -7,14 +7,35 @@ ROOT = Path(SPECPATH).resolve().parent
 
 block_cipher = None
 
+
+def _asset_datas():
+    """Empacota assets OL, excluindo logos/tenants de clientes (LGPD)."""
+    assets = ROOT / "assets"
+    pairs = []
+    if not assets.is_dir():
+        return pairs
+    for path in assets.rglob("*"):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(assets)
+        if rel.parts and rel.parts[0] == "clients":
+            continue
+        name = path.name.lower()
+        if "cruz" in name and "logo" in name:
+            continue
+        dest = str(Path("assets") / rel.parent) if rel.parent != Path(".") else "assets"
+        pairs.append((str(path), dest))
+    return pairs
+
+
 a = Analysis(
     [str(ROOT / "install" / "app_launcher.py")],
     pathex=[str(ROOT), str(ROOT / "src")],
     binaries=[],
     datas=[
         (str(ROOT / "frontend"), "frontend"),
-        (str(ROOT / "assets"), "assets"),
         (str(ROOT / "install" / "config.env"), "install"),
+        *_asset_datas(),
     ],
     hiddenimports=[
         "forti_report",

@@ -1,0 +1,50 @@
+# Copie para sde.yaml (ou cadastre pela UI Super Admin em /admin.html)
+slug: sde
+display_name: SDE — Secretaria do Desenvolvimento Econômico
+enabled: true
+faz:
+  host: 10.0.0.1
+  port: 8090
+  use_ssl: true
+  verify_ssl: false
+  adom: SDE
+  report_schedule_mensal: "MENSAL-RELATÓRIO DE ENDPOINT"
+  report_schedule_wan: ""
+  time_period: last-30-days
+automation:
+  faz_user: ol_automacoes_sde
+  faz_password_env: ""   # ou defina a senha na UI Admin (salva em configs/clients/.secrets/)
+hierarchy:
+  device_pattern: '^(?:(?P<prefix>hafw\d+)|fw)-(?P<region>[a-z0-9]+)-(?P<site>.+)$'
+  region_labels: {}
+pdf:
+  cover_logo: assets/clients/sde/logo.png
+  cover_logo_width_cm: 2.1
+  cover_logo_align: right
+  cover_logo_offset_x_cm: 0.0
+  cover_logo_offset_y_cm: 0.35
+  cover_header: assets/img/cabecalho_capa.png
+  cover_footer: assets/img/rodape_capa.png
+  internal_header: assets/img/cabecalho-interno.png
+  header_logo: assets/img/logo-horizontal-gray.svg
+  cover_title: RELATÓRIO MENSAL GERAL
+  email_subject_prefix: ""
+output:
+  subdir: sde
+schedule:
+  enabled: true
+  day: 5
+  hour: 6
+  minute: 0
+  timezone: America/Sao_Paulo
+  days: 60
+  force_download: true
+  retry_enabled: true
+  max_retries: 3
+  retry_hours: 2
+email:
+  # Não versionar e-mails reais (LGPD) — preencher na UI Admin / .env local
+  smtp_from: ""
+  smtp_to: ""
+  smtp_cc: ""
+  smtp_alert_to: ""

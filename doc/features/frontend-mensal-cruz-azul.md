@@ -30,7 +30,7 @@ Alternativa:
 | Badge ADOM | Lê `/api/client` (CRUZ_AZUL + schedule) |
 | Gerar relatório | Inicia job assíncrono |
 | Barra de progresso | Percentual + mensagem da etapa atual |
-| Log de etapas | Histórico (FAZ, cada antena, PDF, cache) |
+| Log de etapas | Histórico (FAZ, cada dispositivo, PDF, cache) |
 | Opções | Incluir gráficos; forçar download FAZ |
 | Baixar PDF | Habilitado ao concluir (`/api/.../download`) |
 
@@ -49,7 +49,7 @@ Alternativa:
 1. Início / conexão FAZ  
 2. Cache (se `--metadata-only` equivalente)  
 3. Metadados no FAZ  
-4. Por antena: `Antena X/N: {nome}`  
+4. Por dispositivo: `Dispositivo X/N: {nome}`  
 5. Hierarquia  
 6. Geração PDF  
 7. Cache de gráficos  
