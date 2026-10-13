@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from typing import Any, Literal
 
 from forti_report.config import Settings, get_settings
-from forti_report.data.units import report_matches_device
+from forti_report.data.units import effective_mensal_schedule, report_has_schedule, report_matches_device
 from forti_report.faz.client import FortiAnalyzerClient
 
 ReportFormat = Literal["PDF", "HTML", "XML", "CSV", "JSON"]
@@ -54,13 +54,8 @@ class ReportService:
             matches = [
                 r for r in self.list_reports(days=days) if report_matches_device(r, device_name)
             ]
-        schedule = self.settings.faz_report_schedule
-        if schedule:
-            preferred = [r for r in matches if schedule.lower() in (r.get("title") or "").lower()
-                         or schedule.lower() in (r.get("name") or "").lower()]
-            if preferred:
-                matches = preferred
-        return matches
+        schedule = effective_mensal_schedule(self.settings.faz_report_schedule)
+        return [r for r in matches if report_has_schedule(r, schedule)]
 
     def find_latest_report_for_device(
         self,

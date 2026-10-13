@@ -178,7 +178,7 @@ def client_from_legacy_settings(settings: Settings | None = None) -> ClientConfi
             "use_ssl": settings.faz_use_ssl,
             "verify_ssl": settings.faz_verify_ssl,
             "adom": settings.faz_adom,
-            "report_schedule_mensal": settings.faz_report_schedule or "MENSAL- RELATÓRIO GERAL",
+            "report_schedule_mensal": settings.faz_report_schedule or "MENSAL-RELATÓRIO DE ENDPOINT",
             "report_schedule_wan": settings.faz_wan_report_schedule,
             "time_period": settings.faz_time_period,
         },

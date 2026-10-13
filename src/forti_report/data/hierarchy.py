@@ -135,17 +135,27 @@ def build_regional_hierarchy(
     """Monta árvore unidade regional → dispositivos a partir da lista de devices do FAZ."""
     reports_by_device = reports_by_device or {}
     buckets: dict[str, list[AntennaInfo]] = {}
+    # Hostname fora do padrão fw-{região}-{site} vira uma unidade com o próprio nome.
+    literal_titles: dict[str, str] = {}
 
     for dev in devices:
-        name = dev.get("name") or ""
-        parsed = parse_device_name(name, device_pattern)
-        if not parsed:
+        name = (dev.get("name") or "").strip()
+        if not name:
             continue
-        region, site, dtype = parsed
+        parsed = parse_device_name(name, device_pattern)
+        if parsed:
+            region, site, dtype = parsed
+            display = site_display_name(site)
+        else:
+            region = name.lower()
+            site = name.lower()
+            dtype = "fw"
+            display = name
+            literal_titles[region] = name
         antenna = AntennaInfo(
             device_name=name,
             site_slug=site,
-            display_name=site_display_name(site),
+            display_name=display,
             device_type=dtype,
             ip=dev.get("ip"),
             platform=dev.get("platform_str"),
@@ -160,7 +170,7 @@ def build_regional_hierarchy(
         units.append(
             RegionalUnit(
                 code=code,
-                display_name=region_display_name(code, region_labels),
+                display_name=literal_titles.get(code) or region_display_name(code, region_labels),
                 antennas=antennas,
             )
         )

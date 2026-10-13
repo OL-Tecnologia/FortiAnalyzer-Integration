@@ -8,7 +8,7 @@ faz:
   use_ssl: true
   verify_ssl: false
   adom: SDE
-  report_schedule_mensal: "MENSAL- RELATÓRIO GERAL"
+  report_schedule_mensal: "MENSAL-RELATÓRIO DE ENDPOINT"
   report_schedule_wan: ""
   time_period: last-30-days
 automation:

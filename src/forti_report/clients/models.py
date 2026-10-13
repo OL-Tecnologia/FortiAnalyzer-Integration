@@ -15,7 +15,7 @@ class FazClientConfig(BaseModel):
     use_ssl: bool = True
     verify_ssl: bool = False
     adom: str = ""
-    report_schedule_mensal: str = "MENSAL- RELATÓRIO GERAL"
+    report_schedule_mensal: str = "MENSAL-RELATÓRIO DE ENDPOINT"
     report_schedule_wan: str = ""
     time_period: str = "last-30-days"
 

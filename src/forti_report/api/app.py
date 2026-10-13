@@ -298,7 +298,7 @@ def client_info(session: FazPortalSession | None = Depends(get_portal_session)) 
             return ClientInfoResponse(
                 adom=client.faz.adom,
                 display_name=client.display_name,
-                report_schedule=client.faz.report_schedule_mensal or "MENSAL- RELATÓRIO GERAL",
+                report_schedule=client.faz.report_schedule_mensal or "MENSAL-RELATÓRIO DE ENDPOINT",
             )
     clients = list_clients_or_legacy()
     if clients:
@@ -306,13 +306,13 @@ def client_info(session: FazPortalSession | None = Depends(get_portal_session)) 
         return ClientInfoResponse(
             adom=c.faz.adom,
             display_name=c.display_name,
-            report_schedule=c.faz.report_schedule_mensal or "MENSAL- RELATÓRIO GERAL",
+            report_schedule=c.faz.report_schedule_mensal or "MENSAL-RELATÓRIO DE ENDPOINT",
         )
     settings = get_settings()
     return ClientInfoResponse(
         adom=settings.faz_adom,
         display_name=settings.faz_adom,
-        report_schedule=settings.faz_report_schedule or "MENSAL- RELATÓRIO GERAL",
+        report_schedule=settings.faz_report_schedule or "MENSAL-RELATÓRIO DE ENDPOINT",
     )
 
 

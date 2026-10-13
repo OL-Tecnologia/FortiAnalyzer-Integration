@@ -9,7 +9,7 @@ faz:
   use_ssl: true
   verify_ssl: false
   adom: CRUZ_AZUL
-  report_schedule_mensal: "MENSAL- RELATÓRIO GERAL"
+  report_schedule_mensal: "MENSAL-RELATÓRIO DE ENDPOINT"
   report_schedule_wan: "SEMANAL- RELATÓRIO TRÁFEGO WAN"
   time_period: last-30-days
 automation:

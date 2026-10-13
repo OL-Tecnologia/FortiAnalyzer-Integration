@@ -390,7 +390,7 @@ function resetForm() {
   el("cfgEnabled").checked = true;
   el("cfgFazSsl").checked = true;
   el("cfgFazPort").value = 8090;
-  el("cfgFazSchedule").value = "MENSAL- RELATÓRIO GERAL";
+  el("cfgFazSchedule").value = "MENSAL-RELATÓRIO DE ENDPOINT";
   el("cfgAutoPasswordHint").textContent = "";
   clearAssetPreviews();
   el("clientFormTitle").textContent = "Novo cliente";
