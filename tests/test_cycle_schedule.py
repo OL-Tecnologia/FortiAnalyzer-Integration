@@ -121,7 +121,8 @@ def test_colunas_sem_nome_conservam_o_rotulo_da_fatia():
     assert headers[0] == ""
     assert rows[0][0] == "Unidentified"
     pie = figure_for_chart(ChartTable("Ativo por Identificação", "pie", headers, rows, len(rows)))
-    assert list(pie.data[0].labels) == ["Unidentified", "Identified"]
+    assert list(pie.data[0].labels)[0].startswith("Unidentified")
+    assert list(pie.data[0].labels)[1].startswith("Identified")
 
 
 def test_tempo_de_navegacao_nao_some_e_coluna_faltando_nao_desloca():
@@ -186,7 +187,8 @@ def test_anel_agrupa_categoria_e_gigabyte_entra_na_medida():
             total_rows=3,
         )
     )
-    assert list(ring.data[0].labels) == ["ALLOW_ALL", "Business"]
+    assert ring.data[0].labels[0].startswith("ALLOW_ALL — ana")
+    assert any(label.startswith("Business") for label in ring.data[0].labels)
 
 
 def test_cabecalho_curto_em_base64_vira_usuario():
@@ -228,7 +230,43 @@ def test_pdf_consolidado_abre_com_capa_e_fecha_com_rodape(tmp_path):
     assert "RELATÓRIO SEMANAL" in cover
     assert "Ol-Gomes" in cover
     assert "05/10/2026 a 11/10/2026" in cover
+    assert "Sumário" in body
     assert "RELATORIO SEMANAL" in body
+    assert "SEMANAL-RELATÓRIO DE ENDPOINT" in body
     assert f"Página 2 de {len(doc)}" in body
     assert len(doc) > 2
+
+
+def test_capa_usa_o_intervalo_real_dos_arquivos():
+    from datetime import date
+
+    from forti_report.services.consolidated import _period_label
+
+    when = datetime(2026, 10, 13, 16, 30, tzinfo=TZ)
+    assert _period_label("semanal", when, (date(2026, 10, 2), date(2026, 10, 9))) == "02/10/2026 a 09/10/2026"
+    assert _period_label("diario", when, (date(2026, 10, 13), date(2026, 10, 13))) == "13/10/2026"
+
+
+def test_linha_corta_dias_zerados_e_pizza_guarda_dez_fatias():
+    from forti_report.charts.faz_layout import _top_slices, figure_for_chart
+
+    labels, values = _top_slices([f"n{i}" for i in range(12)], [float(i + 1) for i in range(12)])
+    assert labels[-1] == "Outros"
+    assert len(labels) == 11
+    line = figure_for_chart(
+        ChartTable(
+            title="Banda",
+            kind="line",
+            headers=["", "Bytes"],
+            rows=[
+                ["1790910000", "0"],
+                ["1791000000", "0"],
+                ["1791100000", "2000000000"],
+                ["1791200000", "4000000000"],
+            ],
+            total_rows=4,
+        )
+    )
+    assert list(line.data[0].y) == [2.0, 4.0]
+    assert line.layout.yaxis.title.text == "GB"
 

@@ -32,9 +32,9 @@ def figure_for_chart(table: ChartLike) -> go.Figure | None:
     if table.kind == "pie":
         return _pie(table, hole=0)
     if table.kind == "bubble-ring":
-        return _pie(table, hole=0.46, group=True)
+        return _pie(table, hole=0.46)
     if table.kind == "bubble":
-        return _bubbles(table)
+        return _bars(table)
     if table.kind in {"line", "area"}:
         return _series(table, stacked=table.kind == "area")
     if table.kind == "stackbar":
@@ -52,17 +52,16 @@ def render_faz_chart(table: ChartLike) -> tuple[bytes, int, int] | None:
     return png, width, height
 
 
-def _pie(table: ChartLike, *, hole: float, group: bool = False) -> go.Figure | None:
-    labels, values = _pairs(table)
-    if group:
-        labels, values = _group_labels(labels, values)
+def _pie(table: ChartLike, *, hole: float) -> go.Figure | None:
+    labels, values = _top_slices(*_pairs(table))
     if len(labels) < 1 or not any(values):
         return None
     total = sum(values) or 1
+    legend = [f"{label}  {100 * value / total:.1f}%" for label, value in zip(labels, values)]
     texts = [f"{100 * value / total:.1f}%" if value / total >= 0.08 else "" for value in values]
     fig = go.Figure(
         go.Pie(
-            labels=labels,
+            labels=legend,
             values=values,
             hole=hole,
             sort=False,
@@ -72,33 +71,37 @@ def _pie(table: ChartLike, *, hole: float, group: bool = False) -> go.Figure | N
             textposition="inside",
         )
     )
-    _layout(fig, 380)
+    _layout(fig, 250)
+    fig.update_traces(textfont_size=14)
     fig.update_layout(
         showlegend=True,
-        legend=dict(orientation="v", yanchor="middle", y=0.5, x=1.02, font=dict(size=10)),
-        margin=dict(l=8, r=150, t=12, b=12),
+        legend=dict(orientation="v", yanchor="middle", y=0.5, x=1.02, font=dict(size=12)),
+        margin=dict(l=4, r=150, t=8, b=8),
     )
     return fig
 
 
 def _series(table: ChartLike, *, stacked: bool) -> go.Figure | None:
     points = [row for row in table.rows if row and _TIME.match(row[0].strip())]
-    if len(points) < 2:
+    value_cols = [index for index in _numeric_columns(table) if index != 0]
+    points = _trim_empty_edges(points, value_cols)
+    if len(points) < 2 or not value_cols:
         return _bars(table)
     zone = ZoneInfo("America/Sao_Paulo")
     xs = [datetime.fromtimestamp(int(row[0]), zone) for row in points]
-    value_cols = [index for index in _numeric_columns(table) if index != 0]
-    if not value_cols:
-        return None
+    series = [
+        [_measure(row[index]) if index < len(row) else None for row in points]
+        for index in value_cols
+    ]
+    series, unit = _scale_series(series)
     fig = go.Figure()
     colors = STACK_AREA_COLORS if stacked else LINE_SERIES_COLORS
-    for nth, index in enumerate(value_cols[:10]):
+    for nth, index in enumerate(value_cols):
         name = table.headers[index] if index < len(table.headers) and table.headers[index] else f"Série {nth + 1}"
-        ys = [_measure(row[index]) if index < len(row) else None for row in points]
         fig.add_trace(
             go.Scatter(
                 x=xs,
-                y=ys,
+                y=series[nth],
                 name=name,
                 mode="lines",
                 stackgroup="one" if stacked else None,
@@ -107,9 +110,8 @@ def _series(table: ChartLike, *, stacked: bool) -> go.Figure | None:
             )
         )
     _layout(fig, 360, legend_below=True)
-    fig.update_layout(xaxis_title="", yaxis_title="", hovermode="x unified")
+    fig.update_layout(xaxis_title="", yaxis_title=unit, hovermode="x unified")
     fig.update_xaxes(tickformat="%d/%m")
-    _plain_ticks(fig)
     return fig
 
 
@@ -120,6 +122,8 @@ def _bars(table: ChartLike) -> go.Figure | None:
     order = sorted(range(len(values)), key=lambda i: values[i], reverse=True)[:15]
     labels = [labels[i] for i in order][::-1]
     values = [values[i] for i in order][::-1]
+    divisor, unit = _unit_for(max(values) if values else 0)
+    values = [value / divisor for value in values]
     fig = go.Figure(
         go.Bar(
             x=values,
@@ -129,8 +133,7 @@ def _bars(table: ChartLike) -> go.Figure | None:
         )
     )
     _layout(fig, max(280, 26 * len(labels) + 80))
-    fig.update_layout(showlegend=False, margin=dict(l=160, r=24, t=12, b=32))
-    _plain_ticks(fig)
+    fig.update_layout(showlegend=False, xaxis_title=unit, margin=dict(l=160, r=24, t=12, b=32))
     return fig
 
 
@@ -154,19 +157,22 @@ def _stacked_bars(table: ChartLike) -> go.Figure | None:
             stacks[group][stack] = stacks[group].get(stack, 0) + value
         names = list(dict.fromkeys(name for group in groups for name in stacks[group]))
         if groups and names:
+            names = names[:8]
+            columns = [[stacks[group].get(name, 0) for group in groups] for name in names]
+            peak = max((value for column in columns for value in column), default=0)
+            divisor, unit = _unit_for(peak)
             fig = go.Figure()
-            for nth, name in enumerate(names[:8]):
+            for nth, name in enumerate(names):
                 fig.add_trace(
                     go.Bar(
                         name=name,
                         x=groups,
-                        y=[stacks[group].get(name, 0) for group in groups],
+                        y=[value / divisor for value in columns[nth]],
                         marker=dict(color=PIE_COLORS[nth % len(PIE_COLORS)]),
                     )
                 )
-            fig.update_layout(barmode="stack")
+            fig.update_layout(barmode="stack", yaxis_title=unit)
             _layout(fig, 360, legend_below=True)
-            _plain_ticks(fig)
             return fig
     return _bars(table)
 
@@ -254,6 +260,52 @@ def _times(table: ChartLike) -> list[datetime]:
     return [datetime.fromtimestamp(int(value), zone) for value in raw if _TIME.match(value)]
 
 
+def _top_slices(labels: list[str], values: list[float], limit: int = 10) -> tuple[list[str], list[float]]:
+    if len(labels) <= limit:
+        return labels, values
+    order = sorted(range(len(values)), key=lambda index: values[index], reverse=True)
+    keep, rest = order[:limit], order[limit:]
+    return (
+        [labels[index] for index in keep] + ["Outros"],
+        [values[index] for index in keep] + [sum(values[index] for index in rest)],
+    )
+
+
+def _trim_empty_edges(points: list[list[str]], columns: list[int]) -> list[list[str]]:
+    def alive(row: list[str]) -> bool:
+        for index in columns:
+            if index < len(row) and (_measure(row[index]) or 0) > 0:
+                return True
+        return False
+
+    start = 0
+    while start < len(points) and not alive(points[start]):
+        start += 1
+    end = len(points)
+    while end > start and not alive(points[end - 1]):
+        end -= 1
+    trimmed = points[start:end]
+    return trimmed if len(trimmed) >= 2 else points
+
+
+def _unit_for(peak: float) -> tuple[float, str]:
+    if peak >= 1_000_000_000:
+        return 1_000_000_000, "GB"
+    if peak >= 1_000_000:
+        return 1_000_000, "MB"
+    if peak >= 10_000:
+        return 1_000, "mil"
+    return 1, ""
+
+
+def _scale_series(series: list[list[float | None]]) -> tuple[list[list[float | None]], str]:
+    peak = max((value or 0 for column in series for value in column), default=0)
+    divisor, unit = _unit_for(peak)
+    if divisor == 1:
+        return series, unit
+    return [[None if value is None else value / divisor for value in column] for column in series], unit
+
+
 def _group_labels(labels: list[str], values: list[float]) -> tuple[list[str], list[float]]:
     grouped: dict[str, float] = {}
     order: list[str] = []
@@ -269,7 +321,7 @@ def _group_labels(labels: list[str], values: list[float]) -> tuple[list[str], li
 
 def _measure(value: str) -> float | None:
     text = value.strip()
-    if not text or _TIME.match(text):
+    if not text:
         return None
     clock = _CLOCK.match(text)
     if clock:
