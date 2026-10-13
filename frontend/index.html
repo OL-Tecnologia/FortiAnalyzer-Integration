@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Relatório MENSAL — FortiAnalyzer</title>
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=6" />
 </head>
 <body>
   <div class="page">
@@ -14,7 +14,7 @@
         <h1>Relatório MENSAL GERAL</h1>
       </div>
       <div class="header-actions">
-        <div class="client-badge" id="clientBadge">Carregando…</div>
+        <div class="client-badge" id="clientBadge">Carregando cliente…</div>
         <button
           type="button"
           class="btn-icon"
@@ -36,9 +36,48 @@
 
     <main class="card">
       <p class="lead">
-        Gera o PDF unificado com todas as unidades regionais e dispositivos do ADOM configurado.
-        O progresso abaixo mostra cada etapa (FortiAnalyzer, dispositivos e montagem do PDF).
+        Abra a lista, marque o relatório e depois gere. Pode ser um só ou todos.
       </p>
+
+      <div class="picker" id="reportPicker">
+        <div class="picker-head">
+          <div>
+            <p class="picker-title">Qual relatório gerar?</p>
+            <p class="picker-summary" id="reportSummary">Nenhum selecionado</p>
+          </div>
+          <button
+            type="button"
+            class="picker-toggle"
+            id="btnToggleReports"
+            aria-expanded="false"
+            aria-controls="reportChoices"
+          >
+            Expandir
+          </button>
+        </div>
+        <div class="picker-panel hidden" id="reportChoices">
+          <div class="picker-options">
+            <label class="check">
+              <input type="checkbox" id="pickAll" />
+              Todos
+            </label>
+            <label class="check">
+              <input type="checkbox" id="pickDiario" value="diario" />
+              Diário — RELATÓRIO DIÁRIO DE CONFIGURAÇÕES
+            </label>
+            <label class="check">
+              <input type="checkbox" id="pickSemanal" value="semanal" />
+              Semanal — os quatro layouts semanais e o resumo dos diários
+            </label>
+            <label class="check">
+              <input type="checkbox" id="pickMensal" value="mensal" />
+              Mensal — layouts mensais
+            </label>
+          </div>
+          <p class="field-hint">O mensal gera o PDF agora. Diário e semanal ainda não geram PDF nesta versão.</p>
+          <p class="config-msg hidden" id="reportPickMsg"></p>
+        </div>
+      </div>
 
       <div class="options">
         <label class="check">
@@ -169,6 +208,6 @@
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=6"></script>
 </body>
 </html>

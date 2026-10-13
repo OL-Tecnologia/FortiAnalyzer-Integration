@@ -34,6 +34,7 @@ const footerSchedule = el("footerSchedule");
 
 let eventSource = null;
 let currentJobId = null;
+let currentPendingNote = "";
 let phaseState = {};
 
 function initPhaseState() {
@@ -137,16 +138,46 @@ async function logout() {
   window.location.href = "/login.html";
 }
 
+function paintClientBadge(displayName, adom) {
+  if (!clientBadge) return;
+  const name = displayName || "Cliente";
+  const adomText = adom || "não configurado";
+  clientBadge.textContent = `${name} · ADOM ${adomText}`;
+  try {
+    sessionStorage.setItem(
+      "fazPortalClient",
+      JSON.stringify({ display_name: name, adom: adom || "" })
+    );
+  } catch {
+    /* armazenamento da aba indisponível */
+  }
+}
+
+function restoreClientBadge() {
+  try {
+    const raw = sessionStorage.getItem("fazPortalClient");
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    if (saved?.display_name || saved?.adom) {
+      paintClientBadge(saved.display_name, saved.adom);
+    }
+  } catch {
+    /* ignora valor antigo inválido */
+  }
+}
+
 async function loadClient() {
   try {
-    const res = await fetch(apiUrl("/api/client"), API);
+    const res = await fetch(apiUrl("/api/client"), { cache: "no-store", ...API });
     if (!res.ok) throw new Error("Falha ao carregar cliente");
     const data = await res.json();
-    clientBadge.textContent = `ADOM ${data.adom}`;
+    paintClientBadge(data.display_name, data.adom);
     footerSchedule.textContent = data.report_schedule;
     btnGenerate.disabled = false;
   } catch (err) {
-    clientBadge.textContent = "Erro API";
+    if (!clientBadge.textContent || clientBadge.textContent.startsWith("Carregando")) {
+      restoreClientBadge();
+    }
     showError(err.message + " — inicie o servidor: python -m forti_report.api.app");
   }
 }
@@ -208,7 +239,7 @@ function onProgressEvent(data) {
   }
 
   if (data.status === "completed" && data.download_url) {
-    finishSuccess(data);
+    finishSuccess({ ...data, pending_note: currentPendingNote });
   } else if (data.status === "failed") {
     finishError(data.error || data.message || "Erro desconhecido");
   }
@@ -226,7 +257,8 @@ function finishSuccess(data) {
   }
   btnGenerate.disabled = false;
   resultPanel.classList.remove("hidden");
-  resultMessage.textContent = data.message || "PDF pronto.";
+  const pending = data.pending_note ? ` ${data.pending_note}` : "";
+  resultMessage.textContent = `${data.message || "PDF mensal pronto."}${pending}`;
   const url = data.download_url || `/api/reports/mensal/jobs/${currentJobId}/download`;
   btnDownload.href = url;
   btnDownload.download = data.pdf_filename || "relatorio.pdf";
@@ -242,7 +274,77 @@ function finishError(msg) {
   showError(msg);
 }
 
-async function startGeneration() {
+const REPORT_PICKS = [
+  { id: "pickDiario", kind: "diario", label: "Diário" },
+  { id: "pickSemanal", kind: "semanal", label: "Semanal" },
+  { id: "pickMensal", kind: "mensal", label: "Mensal" },
+];
+
+function selectedReports() {
+  return REPORT_PICKS.filter((item) => el(item.id)?.checked).map((item) => item.kind);
+}
+
+function syncPickAll() {
+  const all = el("pickAll");
+  if (!all) return;
+  all.checked = REPORT_PICKS.every((item) => el(item.id)?.checked);
+  updateReportSummary();
+}
+
+function updateReportSummary() {
+  const summary = el("reportSummary");
+  if (!summary) return;
+  const chosen = REPORT_PICKS.filter((item) => el(item.id)?.checked);
+  if (!chosen.length) {
+    summary.textContent = "Nenhum selecionado";
+    return;
+  }
+  if (chosen.length === REPORT_PICKS.length) {
+    summary.textContent = "Todos";
+    return;
+  }
+  summary.textContent = chosen.map((item) => item.label).join(", ");
+}
+
+function setReportListOpen(open) {
+  const panel = el("reportChoices");
+  const button = el("btnToggleReports");
+  if (!panel || !button) return;
+  panel.classList.toggle("hidden", !open);
+  button.setAttribute("aria-expanded", open ? "true" : "false");
+  button.textContent = open ? "Recolher" : "Expandir";
+}
+
+function pendingPeriodMessage(kinds) {
+  const labels = [];
+  if (kinds.includes("diario")) labels.push("diário");
+  if (kinds.includes("semanal")) labels.push("semanal");
+  if (!labels.length) return "";
+  const plural = labels.length > 1;
+  const subject = plural ? `Os relatórios ${labels.join(" e ")}` : `O relatório ${labels[0]}`;
+  return `${subject} ainda não ${plural ? "geram" : "gera"} PDF nesta versão.`;
+}
+
+async function startGeneration(kinds) {
+  const chosen = kinds?.length ? kinds : selectedReports();
+  if (!chosen.length) {
+    setReportListOpen(true);
+    const box = el("reportPickMsg");
+    if (box) {
+      box.textContent = "Marque ao menos um relatório.";
+      box.classList.remove("hidden");
+    }
+    return;
+  }
+
+  const pending = pendingPeriodMessage(chosen);
+  if (!chosen.includes("mensal")) {
+    resultPanel.classList.add("hidden");
+    progressPanel.classList.add("hidden");
+    showError(pending);
+    return;
+  }
+
   resetUi();
   currentJobId = null;
 
@@ -251,6 +353,7 @@ async function startGeneration() {
     download: true,
     force_download: el("optForce").checked,
     charts: el("optCharts").checked,
+    reports: chosen,
   };
 
   try {
@@ -270,6 +373,7 @@ async function startGeneration() {
     }
     const job = await res.json();
     currentJobId = job.job_id;
+    currentPendingNote = pending;
     connectStream(job.stream_url);
   } catch (err) {
     finishError(err.message);
@@ -312,7 +416,8 @@ async function pollFallback(jobId) {
     if (data.status === "completed") {
       finishSuccess({
         status: "completed",
-        message: "Relatório gerado.",
+        message: "Relatório mensal gerado.",
+        pending_note: currentPendingNote,
         download_url: `/api/reports/mensal/jobs/${jobId}/download`,
         pdf_filename: data.pdf_filename,
       });
@@ -326,7 +431,22 @@ async function pollFallback(jobId) {
   }
 }
 
-btnGenerate.addEventListener("click", startGeneration);
+btnGenerate.addEventListener("click", () => startGeneration());
+el("pickAll")?.addEventListener("change", () => {
+  const on = el("pickAll").checked;
+  for (const item of REPORT_PICKS) {
+    const box = el(item.id);
+    if (box) box.checked = on;
+  }
+  updateReportSummary();
+});
+for (const item of REPORT_PICKS) {
+  el(item.id)?.addEventListener("change", syncPickAll);
+}
+el("btnToggleReports")?.addEventListener("click", () => {
+  const open = el("btnToggleReports").getAttribute("aria-expanded") !== "true";
+  setReportListOpen(open);
+});
 btnLogout.addEventListener("click", logout);
 
 function syncRetryOptions() {
@@ -481,7 +601,7 @@ el("btnOpenConfig")?.addEventListener("click", openConfigModal);
 el("btnCloseConfig")?.addEventListener("click", closeConfigModal);
 el("configModalBackdrop")?.addEventListener("click", closeConfigModal);
 document.addEventListener("keydown", (ev) => {
-  if (ev.key === "Escape" && !el("configModal")?.classList.contains("hidden")) {
+  if (ev.key === "Escape" && el("configModal") && !el("configModal").classList.contains("hidden")) {
     closeConfigModal();
   }
 });
@@ -490,5 +610,6 @@ document.addEventListener("keydown", (ev) => {
   const me = await requireAuth();
   if (!me) return;
   if (userLabel) userLabel.textContent = me.user || "";
+  paintClientBadge(me.display_name, me.adom);
   await loadClient();
 })();

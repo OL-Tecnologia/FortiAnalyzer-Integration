@@ -785,7 +785,11 @@ def _register_frontend(app: FastAPI) -> None:
         if not path.is_file():
             raise HTTPException(404, "Arquivo não encontrado")
         suffix = path.suffix.lower()
-        return FileResponse(path, media_type=media_types.get(suffix, "application/octet-stream"))
+        return FileResponse(
+            path,
+            media_type=media_types.get(suffix, "application/octet-stream"),
+            headers={"Cache-Control": "no-store"},
+        )
 
     @app.get("/", include_in_schema=False)
     def serve_index() -> FileResponse:
