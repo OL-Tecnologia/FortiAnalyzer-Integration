@@ -87,6 +87,20 @@ Catálogo das capacidades atuais do **fortiAnalyzer**. Detalhes em documentos fi
 
 ---
 
+## Ciclo diário, semanal e mensal
+
+Spec do ciclo acordado. O V1 continua só com o mensal de endpoint.
+
+| Feature | Status | Documento / código |
+|---------|--------|-------------------|
+| Diário — `RELATÓRIO DIÁRIO DE CONFIGURAÇÕES` (segunda a domingo) | 📋 Planejado | [ciclo-diario-semanal-mensal.md](ciclo-diario-semanal-mensal.md) |
+| Semanal — quatro layouts + resumo dos diários | 📋 Planejado | [ciclo-diario-semanal-mensal.md](ciclo-diario-semanal-mensal.md) |
+| Mensal — cinco layouts (endpoint já existe no V1) | 📋 Planejado | [ciclo-diario-semanal-mensal.md](ciclo-diario-semanal-mensal.md) |
+| Disparo padrão segunda 06:00, horário por cliente | 📋 Planejado | [ciclo-diario-semanal-mensal.md](ciclo-diario-semanal-mensal.md) |
+| Fechamento de referência domingo 08:00 | 📋 Planejado | [ciclo-diario-semanal-mensal.md](ciclo-diario-semanal-mensal.md) |
+
+---
+
 ## Performance e operação
 
 | Feature | Status | Documento / código |

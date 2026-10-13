@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Login — FortiAnalyzer</title>
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=4" />
 </head>
 <body>
   <div class="page page-narrow">
@@ -28,13 +28,14 @@
 
     <main class="card">
       <p class="lead">
-        Selecione o cliente e informe suas credenciais do FortiAnalyzer para gerar o relatório MENSAL.
+        Selecione o cliente e informe suas credenciais do FortiAnalyzer. Depois do acesso, escolha qual relatório gerar.
       </p>
 
       <form id="loginForm" class="login-form" autocomplete="on">
+        <p class="adom-line" id="loginAdomHint">Carregando cliente…</p>
         <label class="field" id="clientField">
           <span>Cliente</span>
-          <select id="loginClient" name="client" required></select>
+          <select id="loginClient" name="client" autocomplete="off" required></select>
         </label>
         <label class="field">
           <span>Usuário FAZ</span>
@@ -50,13 +51,12 @@
       </form>
 
       <p class="error hidden" id="loginError"></p>
-      <p class="field-hint" id="loginAdomHint"></p>
     </main>
 
     <footer class="footer">
       <span>FortiAnalyzer → PDF</span>
     </footer>
   </div>
-  <script src="login.js"></script>
+  <script src="login.js?v=4"></script>
 </body>
 </html>

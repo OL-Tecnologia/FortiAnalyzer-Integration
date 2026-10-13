@@ -35,40 +35,80 @@ function showLoginError(msg) {
   box.classList.remove("hidden");
 }
 
+let knownClients = [];
+
+function paintLoginAdom(clients, select) {
+  const hint = document.getElementById("loginAdomHint");
+  if (!hint) return;
+  const chosen = clients.find((c) => c.slug === select?.value) || clients[0];
+  if (!chosen) {
+    hint.textContent = "Nenhum cliente cadastrado.";
+    return;
+  }
+  const adom = chosen.adom || "não configurado";
+  hint.textContent = `${chosen.display_name} · ADOM ${adom}`;
+  try {
+    sessionStorage.setItem(
+      "fazPortalClient",
+      JSON.stringify({ display_name: chosen.display_name, adom: chosen.adom || "" })
+    );
+  } catch {
+    /* armazenamento da aba indisponível */
+  }
+}
+
+function restoreLoginAdom() {
+  const hint = document.getElementById("loginAdomHint");
+  if (!hint) return;
+  try {
+    const raw = sessionStorage.getItem("fazPortalClient");
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    if (saved?.display_name) {
+      hint.textContent = `${saved.display_name} · ADOM ${saved.adom || "não configurado"}`;
+    }
+  } catch {
+    /* ignora valor antigo inválido */
+  }
+}
+
 async function loadClients() {
   const select = document.getElementById("loginClient");
-  const hint = document.getElementById("loginAdomHint");
   const field = document.getElementById("clientField");
   if (!select) return [];
 
-  const res = await fetch(apiUrl("/api/clients"), API);
+  const res = await fetch(apiUrl("/api/clients"), { cache: "no-store", ...API });
   if (!res.ok) {
     throw new Error("Não foi possível carregar a lista de clientes.");
   }
   const clients = await res.json();
+  knownClients = clients;
+  const previous = select.value;
   select.innerHTML = clients
     .map(
       (c) =>
-        `<option value="${c.slug}" data-adom="${c.adom}">${c.display_name} (${c.adom})</option>`
+        `<option value="${c.slug}" data-adom="${c.adom || ""}">${c.display_name} (${c.adom || "sem ADOM"})</option>`
     )
     .join("");
-
-  if (clients.length <= 1 && field) {
-    field.classList.add("hidden");
+  if (previous && clients.some((c) => c.slug === previous)) {
+    select.value = previous;
+  } else if (clients[0]) {
+    select.value = clients[0].slug;
   }
 
-  const updateHint = () => {
-    const opt = select.selectedOptions[0];
-    if (hint && opt) {
-      hint.textContent = `ADOM: ${opt.dataset.adom || "—"}`;
-    }
-  };
-  select.addEventListener("change", updateHint);
-  updateHint();
+  if (field) field.classList.remove("hidden");
+  if (!select.dataset.bound) {
+    select.dataset.bound = "1";
+    select.addEventListener("change", () => paintLoginAdom(knownClients, select));
+  }
+  paintLoginAdom(clients, select);
   return clients;
 }
 
+let loginBound = false;
+
 async function initLoginPage() {
+  restoreLoginAdom();
   const me = await checkAuth();
   if (me && me.authenticated) {
     window.location.href = "/";
@@ -86,9 +126,13 @@ async function initLoginPage() {
       btn.disabled = true;
       return;
     }
+    btn.disabled = false;
   } catch (err) {
     showLoginError(err.message || "Falha ao carregar clientes");
   }
+
+  if (loginBound) return;
+  loginBound = true;
 
   form.addEventListener("submit", async (ev) => {
     ev.preventDefault();
@@ -130,4 +174,7 @@ async function initLoginPage() {
 
 if (document.getElementById("loginForm")) {
   initLoginPage();
+  window.addEventListener("pageshow", () => {
+    initLoginPage();
+  });
 }
