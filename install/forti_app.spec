@@ -40,6 +40,12 @@ a = Analysis(
     hiddenimports=[
         "forti_report",
         "forti_report.api.app",
+        "forti_report.services.consolidated",
+        "forti_report.charts.faz_layout",
+        "forti_report.services.cycle_schedule",
+        "forti_report.services.cycle_runner",
+        "forti_report.services.harvest",
+        "forti_report.data.harvest_catalog",
         "forti_report.runtime_paths",
         "uvicorn.logging",
         "uvicorn.loops",

@@ -257,8 +257,7 @@ function finishSuccess(data) {
   }
   btnGenerate.disabled = false;
   resultPanel.classList.remove("hidden");
-  const pending = data.pending_note ? ` ${data.pending_note}` : "";
-  resultMessage.textContent = `${data.message || "PDF mensal pronto."}${pending}`;
+  resultMessage.textContent = data.message || "Relatório pronto.";
   const url = data.download_url || `/api/reports/mensal/jobs/${currentJobId}/download`;
   btnDownload.href = url;
   btnDownload.download = data.pdf_filename || "relatorio.pdf";
@@ -315,16 +314,6 @@ function setReportListOpen(open) {
   button.textContent = open ? "Recolher" : "Expandir";
 }
 
-function pendingPeriodMessage(kinds) {
-  const labels = [];
-  if (kinds.includes("diario")) labels.push("diário");
-  if (kinds.includes("semanal")) labels.push("semanal");
-  if (!labels.length) return "";
-  const plural = labels.length > 1;
-  const subject = plural ? `Os relatórios ${labels.join(" e ")}` : `O relatório ${labels[0]}`;
-  return `${subject} ainda não ${plural ? "geram" : "gera"} PDF nesta versão.`;
-}
-
 async function startGeneration(kinds) {
   const chosen = kinds?.length ? kinds : selectedReports();
   if (!chosen.length) {
@@ -334,14 +323,6 @@ async function startGeneration(kinds) {
       box.textContent = "Marque ao menos um relatório.";
       box.classList.remove("hidden");
     }
-    return;
-  }
-
-  const pending = pendingPeriodMessage(chosen);
-  if (!chosen.includes("mensal")) {
-    resultPanel.classList.add("hidden");
-    progressPanel.classList.add("hidden");
-    showError(pending);
     return;
   }
 
@@ -373,7 +354,7 @@ async function startGeneration(kinds) {
     }
     const job = await res.json();
     currentJobId = job.job_id;
-    currentPendingNote = pending;
+    currentPendingNote = "";
     connectStream(job.stream_url);
   } catch (err) {
     finishError(err.message);
