@@ -7,8 +7,7 @@ from pathlib import Path
 
 from forti_report.config import Settings, get_settings
 from forti_report.services.job_store import JobRecord, JobStore
-from forti_report.services.mensal_pipeline import MensalReportPipeline
-from forti_report.services.progress import ProgressCallback, ProgressEvent, ProgressUpdate, clamp_percent
+from forti_report.services.progress import ProgressEvent, clamp_percent
 
 _store = JobStore()
 
@@ -23,6 +22,7 @@ def start_mensal_job(
     download: bool = True,
     force_download: bool = False,
     charts: bool = True,
+    reports: list[str] | None = None,
     settings: Settings | None = None,
     portal_session_id: str = "",
 ) -> JobRecord:
@@ -36,9 +36,10 @@ def start_mensal_job(
         settings = settings.model_copy(update=updates)
 
     record = _store.create(adom=settings.faz_adom, portal_session_id=portal_session_id)
+    cycles = _normalize_reports(reports)
 
     def run() -> None:
-        _run_job(record, settings, days=days, download=download)
+        _run_job(record, settings, days=days, download=download, reports=cycles)
 
     threading.Thread(target=run, daemon=True).start()
     return record
@@ -68,34 +69,63 @@ def _emit(
     )
 
 
-def _run_job(record: JobRecord, settings: Settings, *, days: int, download: bool) -> None:
-    try:
-        _emit(
-            record,
-            0,
-            "init",
-            f"Iniciando relatório MENSAL — ADOM {settings.faz_adom}",
-            phase="faz",
-            phase_percent=0,
-        )
+def _normalize_reports(reports: list[str] | None) -> list[str]:
+    allowed = ("diario", "semanal", "mensal")
+    chosen = [cycle for cycle in allowed if cycle in set(reports or [])]
+    return chosen or ["mensal"]
 
-        def on_progress(update: ProgressUpdate) -> None:
+
+def _run_job(
+    record: JobRecord,
+    settings: Settings,
+    *,
+    days: int,
+    download: bool,
+    reports: list[str],
+) -> None:
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    import zipfile
+
+    from forti_report.services.consolidated import generate_consolidated
+    from forti_report.services.cycle_schedule import CYCLE_TITLES
+
+    try:
+        moment = datetime.now(ZoneInfo(settings.mensal_schedule_timezone))
+        paths: list[Path] = []
+        for index, cycle in enumerate(reports):
+            title = CYCLE_TITLES[cycle]
             _emit(
                 record,
-                update.percent,
-                update.step,
-                update.message,
-                phase=update.phase,
-                phase_percent=update.phase_percent,
+                int(index * 90 / max(len(reports), 1)),
+                "pdf",
+                f"Montando {title}…",
+                phase="pdf",
+                phase_percent=10,
+            )
+            path = generate_consolidated(
+                settings,
+                cycle,
+                when=moment,
+                refresh=download and index == 0,
+            )
+            paths.append(path)
+            _emit(
+                record,
+                int((index + 1) * 90 / max(len(reports), 1)),
+                "pdf",
+                f"{title} pronto: {path.name}",
+                phase="pdf",
+                phase_percent=100,
             )
 
-        pipeline = MensalReportPipeline(settings)
-        path = pipeline.generate_unified_pdf(
-            days=days,
-            download=download,
-            on_progress=on_progress,
-        )
-        record.pdf_path = path
+        final = paths[0]
+        if len(paths) > 1:
+            final = settings.output_dir / f"CONSOLIDADOS_{moment.strftime('%Y-%m-%d')}.zip"
+            with zipfile.ZipFile(final, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+                for path in paths:
+                    archive.write(path, arcname=path.name)
+        record.pdf_path = final
         _emit(
             record,
             100,
@@ -105,18 +135,10 @@ def _run_job(record: JobRecord, settings: Settings, *, days: int, download: bool
             phase="finalize",
             phase_percent=100,
             extra={
-                "pdf_filename": path.name,
+                "pdf_filename": final.name,
                 "download_url": f"/api/reports/mensal/jobs/{record.job_id}/download",
             },
         )
     except Exception as exc:
         record.error = str(exc)
-        record.push(
-            ProgressEvent(
-                percent=record.events[-1].percent if record.events else 0,
-                step="error",
-                message=str(exc),
-                status="failed",
-                extra={"error": str(exc)},
-            )
-        )
+        _emit(record, 100, "done", str(exc), status="failed", phase="finalize", phase_percent=100)

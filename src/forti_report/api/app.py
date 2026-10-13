@@ -669,6 +669,7 @@ def generate_mensal(
         download=body.download,
         force_download=body.force_download,
         charts=body.charts,
+        reports=body.reports,
         settings=settings,
         portal_session_id=session.session_id,
     )
@@ -762,10 +763,11 @@ def download_job(
     _require_job_access(record, session)
     if record.status != "completed" or not record.pdf_path or not record.pdf_path.is_file():
         raise HTTPException(409, "PDF ainda não está disponível")
+    media_type = "application/zip" if record.pdf_path.suffix.lower() == ".zip" else "application/pdf"
     return FileResponse(
         path=record.pdf_path,
         filename=record.pdf_path.name,
-        media_type="application/pdf",
+        media_type=media_type,
     )
 
 

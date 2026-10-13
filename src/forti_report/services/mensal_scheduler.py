@@ -12,6 +12,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from forti_report.config import Settings, get_settings
+from forti_report.services.cycle_runner import run_due_cycles, seconds_until_next_slot
 from forti_report.services.email_delivery import send_failure_alert, send_mensal_report_email
 from forti_report.services.mensal_pipeline import MensalReportPipeline
 
@@ -360,23 +361,10 @@ def _scheduler_loop(stop_event: threading.Event) -> None:
         any_ran = False
         min_wait = 3600.0
         for settings in scheduled:
-            state = load_scheduler_state(settings)
-            current = period_key(settings=settings)
-
-            if state.period == current and state.status == "success":
-                next_run = compute_next_run(settings)
-                wait_seconds = max(1.0, (next_run - now_in_tz(settings)).total_seconds())
-                min_wait = min(min_wait, wait_seconds)
-                continue
-
-            if is_due_now(settings):
-                run_scheduled_mensal(settings, source="scheduler")
+            ran = run_due_cycles(settings, source="scheduler")
+            if ran:
                 any_ran = True
-                continue
-
-            next_run = compute_next_run(settings)
-            wait_seconds = max(1.0, (next_run - now_in_tz(settings)).total_seconds())
-            min_wait = min(min_wait, wait_seconds)
+            min_wait = min(min_wait, seconds_until_next_slot(settings))
 
         if any_ran:
             stop_event.wait(60)
@@ -401,9 +389,8 @@ def start_background_scheduler() -> threading.Event | None:
     _background_thread = thread
     first = scheduled[0]
     logger.info(
-        "Scheduler MENSAL multi-tenant iniciado (%s tenant(s); ex.: dia %s às %02d:%02d)",
+        "Scheduler dos consolidados iniciado (%s tenant(s); ex.: %02d:%02d)",
         len(scheduled),
-        first.mensal_schedule_day,
         first.mensal_schedule_hour,
         first.mensal_schedule_minute,
     )

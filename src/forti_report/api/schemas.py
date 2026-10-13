@@ -73,6 +73,7 @@ class GenerateMensalRequest(BaseModel):
     download: bool = True
     force_download: bool = False
     charts: bool = True
+    reports: list[str] = Field(default_factory=lambda: ["mensal"])
 
 
 class JobCreatedResponse(BaseModel):

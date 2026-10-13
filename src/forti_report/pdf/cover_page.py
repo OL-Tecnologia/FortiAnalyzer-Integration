@@ -140,6 +140,9 @@ def build_mensal_cover_flowables(
     regional_units: int,
     antennas: int,
     when: datetime | None = None,
+    title: str | None = None,
+    detail: str | None = None,
+    period_label: str | None = None,
 ) -> list:
     """
     Capa A4 completa:
@@ -152,9 +155,11 @@ def build_mensal_cover_flowables(
     footer_path = _asset(settings.pdf_cover_footer_image)
     logo_path = _asset(settings.pdf_cover_logo_image)
 
-    title = (settings.cover_title or "RELATÓRIO MENSAL  GERAL").strip()
+    title = (title or settings.cover_title or "RELATÓRIO MENSAL  GERAL").strip()
     company = (settings.client_display_name or "").strip()
     subtitle = _cover_subtitle(adom, company)
+    detail_line = detail if detail is not None else f"{regional_units} unidades regionais · {antennas} dispositivos"
+    period = period_label or _month_year_label(when)
 
     if not header_path and not footer_path:
         return _text_only_cover(
@@ -166,6 +171,8 @@ def build_mensal_cover_flowables(
             company=company,
             logo_path=logo_path,
             settings=settings,
+            detail_line=detail_line,
+            period=period,
         )
 
     flow: list = []
@@ -229,11 +236,8 @@ def build_mensal_cover_flowables(
     text_block: list = [
         Paragraph(title, title_style),
         Paragraph(subtitle, subtitle_style),
-        Paragraph(
-            f"{regional_units} unidades regionais · {antennas} dispositivos",
-            body_style,
-        ),
-        Paragraph(_month_year_label(when), body_style),
+        Paragraph(detail_line, body_style),
+        Paragraph(period, body_style),
     ]
 
     side_pad = LATERAL_MARGIN
@@ -298,6 +302,8 @@ def _text_only_cover(
     company: str,
     logo_path: Path | None,
     settings: Settings,
+    detail_line: str | None = None,
+    period: str | None = None,
 ) -> list:
     """Fallback se as faixas OL não existirem no disco."""
     page_w, page_h = A4
@@ -327,11 +333,11 @@ def _text_only_cover(
             ),
         ),
         Paragraph(
-            f"{regional_units} unidades regionais · {antennas} dispositivos",
+            detail_line or f"{regional_units} unidades regionais · {antennas} dispositivos",
             ParagraphStyle("B", parent=styles["Normal"], alignment=1, fontSize=11),
         ),
         Paragraph(
-            _month_year_label(when),
+            period or _month_year_label(when),
             ParagraphStyle("M", parent=styles["Normal"], alignment=1, fontSize=11),
         ),
     ]
