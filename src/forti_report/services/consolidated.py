@@ -18,9 +18,11 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import cm
 from reportlab.platypus import (
     BaseDocTemplate,
+    CondPageBreak,
     Flowable,
     Frame,
     Image,
+    KeepTogether,
     NextPageTemplate,
     PageBreak,
     PageTemplate,
@@ -267,6 +269,40 @@ def _write_pdf(
     dailies: list[HarvestItemRef],
 ) -> None:
     styles = _styles()
+    root = harvest_root(settings)
+    bounds = _analysis_bounds(root, layouts)
+    period = _period_label(cycle, when, bounds)
+    entries: list[_Outline] = []
+    content: list[Any] = []
+    present, missing = _split_layouts(root, layouts)
+    if missing:
+        _mark(entries, content, "Layouts ainda não gerados pelo FortiAnalyzer", 0)
+        content.append(Paragraph("Layouts ainda não gerados pelo FortiAnalyzer", styles["section"]))
+        for layout in missing:
+            _mark(entries, content, layout.prefix, 1)
+            content.append(Paragraph(_escape(layout.prefix), styles["chart"]))
+            content.append(Paragraph("O FortiAnalyzer ainda não gerou este layout.", styles["note"]))
+        if present or (cycle == "semanal" and dailies):
+            content.append(PageBreak())
+    for index, (layout, item) in enumerate(present):
+        if index:
+            content.append(PageBreak())
+        _mark(entries, content, layout.prefix, 0)
+        content.append(Paragraph(layout.prefix, styles["section"]))
+        content.append(Paragraph(_file_caption(item), styles["meta"]))
+        kpis, tables = read_report(root / item.path)
+        content.extend(
+            _chart_flow(
+                kpis,
+                tables,
+                styles,
+                entries,
+                skip_config=cycle == "semanal",
+            )
+        )
+    if cycle == "semanal":
+        content.append(PageBreak())
+        content.extend(_daily_summary(root, dailies, bounds, styles, entries))
     doc = _ConsolidatedDoc(str(path), settings=settings, cycle=cycle)
     story: list[Any] = [
         _PageTotal(doc),
@@ -278,33 +314,63 @@ def _write_pdf(
             when=when,
             title=CYCLE_TITLES[cycle],
             detail=_device_line(layouts),
-            period_label=_cover_period(cycle, when),
+            period_label=period,
         ),
         NextPageTemplate("internal"),
         PageBreak(),
-        Paragraph(_subtitle(settings, cycle, when), styles["meta"]),
-        Spacer(1, 0.3 * cm),
+        Paragraph("Sumário", styles["section"]),
+        Paragraph(_subtitle(settings, period), styles["meta"]),
+        Spacer(1, 0.2 * cm),
+        *[_TocLine(entry) for entry in entries],
+        PageBreak(),
+        *content,
     ]
-    root = harvest_root(settings)
-    for index, (layout, item) in enumerate(layouts):
-        if index:
-            story.append(PageBreak())
-        story.append(Paragraph(layout.prefix, styles["section"]))
-        if item is None:
-            story.append(Paragraph("O FortiAnalyzer ainda não gerou este layout.", styles["note"]))
-            story.append(Spacer(1, 0.3 * cm))
-            continue
-        story.append(Paragraph(_file_caption(item), styles["meta"]))
-        file_path = root / item.path
-        if not file_path.is_file():
-            story.append(Paragraph("Arquivo colhido não encontrado neste computador.", styles["note"]))
-            continue
-        kpis, tables = read_report(file_path)
-        story.extend(_chart_flow(kpis, tables, styles))
-    if cycle == "semanal":
-        story.append(PageBreak())
-        story.extend(_daily_summary(root, dailies, when, styles))
     doc.multiBuild(story)
+
+
+@dataclass
+class _Outline:
+    title: str
+    level: int
+    page: int = 0
+
+
+class _TocMark(Flowable):
+    def __init__(self, entry: _Outline):
+        super().__init__()
+        self.entry = entry
+
+    def wrap(self, availWidth, availHeight):  # noqa: N803
+        return 0, 0
+
+    def draw(self) -> None:
+        self.entry.page = int(self.canv.getPageNumber())
+
+
+class _TocLine(Flowable):
+    def __init__(self, entry: _Outline):
+        super().__init__()
+        self.entry = entry
+
+    def wrap(self, availWidth, availHeight):  # noqa: N803
+        self.width = availWidth
+        return availWidth, 12
+
+    def draw(self) -> None:
+        indent = 14 * self.entry.level
+        font = "Helvetica-Bold" if self.entry.level == 0 else "Helvetica"
+        self.canv.setFont(font, 8)
+        self.canv.setFillColor(colors.HexColor("#1f4e79" if self.entry.level == 0 else "#333333"))
+        title = self.entry.title if len(self.entry.title) <= 78 else self.entry.title[:75] + "..."
+        self.canv.drawString(indent, 2, title)
+        page = str(self.entry.page) if self.entry.page else "—"
+        self.canv.drawRightString(self.width, 2, page)
+
+
+def _mark(entries: list[_Outline], content: list[Any], title: str, level: int) -> None:
+    entry = _Outline(title, level, 0)
+    entries.append(entry)
+    content.append(_TocMark(entry))
 
 
 class _PageTotal(Flowable):
@@ -397,31 +463,84 @@ def _device_line(layouts: list[tuple[HarvestLayout, HarvestItemRef | None]]) -> 
     return f"{count} dispositivos"
 
 
-def _cover_period(cycle: str, when: datetime) -> str:
+def _split_layouts(
+    root: Path,
+    layouts: list[tuple[HarvestLayout, HarvestItemRef | None]],
+) -> tuple[list[tuple[HarvestLayout, HarvestItemRef]], list[HarvestLayout]]:
+    present: list[tuple[HarvestLayout, HarvestItemRef]] = []
+    missing: list[HarvestLayout] = []
+    for layout, item in layouts:
+        if item is not None and (root / item.path).is_file():
+            present.append((layout, item))
+        else:
+            missing.append(layout)
+    return present, missing
+
+
+def _analysis_bounds(
+    root: Path,
+    layouts: list[tuple[HarvestLayout, HarvestItemRef | None]],
+) -> tuple[date | None, date | None]:
+    starts: list[date] = []
+    ends: list[date] = []
+    zone = ZoneInfo("America/Sao_Paulo")
+    for _layout, item in layouts:
+        if item is None or not (root / item.path).is_file():
+            continue
+        if item.period_end is not None:
+            ends.append(item.period_end)
+        _kpis, tables = read_report(root / item.path)
+        for table in tables:
+            if table.kind not in _SERIES_KINDS:
+                continue
+            stamps = [int(row[0]) for row in table.rows if row and re.fullmatch(r"\d{10}", row[0].strip())]
+            if len(stamps) < 2:
+                continue
+            starts.append(datetime.fromtimestamp(min(stamps), zone).date())
+            ends.append(datetime.fromtimestamp(max(stamps), zone).date())
+    if not starts and not ends:
+        return None, None
+    start = min(starts) if starts else min(ends)
+    return start, max(ends)
+
+
+def _period_label(cycle: str, when: datetime, bounds: tuple[date | None, date | None]) -> str:
+    start, end = bounds
+    if start and end:
+        if start == end:
+            return start.strftime("%d/%m/%Y")
+        return f"{start.strftime('%d/%m/%Y')} a {end.strftime('%d/%m/%Y')}"
     if cycle == "diario":
         return closed_through(when).strftime("%d/%m/%Y")
     if cycle == "semanal":
-        start, end = completed_week(when)
-        return f"{start.strftime('%d/%m/%Y')} a {end.strftime('%d/%m/%Y')}"
-    start = previous_month(when)[0] if when.day == 1 else when.date().replace(day=1)
-    return f"{_MONTHS_PT[start.month - 1]}/{start.year}"
+        week_start, week_end = completed_week(when)
+        return f"{week_start.strftime('%d/%m/%Y')} a {week_end.strftime('%d/%m/%Y')}"
+    month_start = previous_month(when)[0] if when.day == 1 else when.date().replace(day=1)
+    return f"{_MONTHS_PT[month_start.month - 1]}/{month_start.year}"
 
 
-def _daily_summary(root: Path, dailies: list[HarvestItemRef], when: datetime, styles: dict) -> list[Any]:
-    start, end = completed_week(when)
-    flow: list[Any] = [
-        Paragraph("Alterações do diário na semana", styles["section"]),
-        Paragraph(
-            f"Segunda {start.strftime('%d/%m/%Y')} a domingo {end.strftime('%d/%m/%Y')}.",
-            styles["meta"],
-        ),
-    ]
+def _daily_summary(
+    root: Path,
+    dailies: list[HarvestItemRef],
+    bounds: tuple[date | None, date | None],
+    styles: dict,
+    entries: list[_Outline],
+) -> list[Any]:
+    start, end = bounds
     chosen = _one_daily_per_day(dailies, root)
+    if start and end:
+        chosen = [item for item in chosen if item.period_end and start <= item.period_end <= end]
+    window = _period_label("semanal", datetime.now(ZoneInfo("America/Sao_Paulo")), bounds)
+    flow: list[Any] = []
+    _mark(entries, flow, "Alterações do diário no período", 0)
+    flow.append(Paragraph("Alterações do diário no período", styles["section"]))
+    flow.append(Paragraph(window, styles["meta"]))
     if not chosen:
         flow.append(Paragraph("Nenhum diário desta semana foi colhido.", styles["note"]))
         return flow
     for item in chosen:
         day = item.period_end.strftime("%d/%m/%Y") if item.period_end else "sem data"
+        _mark(entries, flow, day, 1)
         flow.append(Paragraph(day, styles["chart"]))
         file_path = root / item.path
         if not file_path.is_file():
@@ -458,9 +577,14 @@ def _chart_flow(
     kpis: list[tuple[str, str]],
     tables: list[ChartTable],
     styles: dict,
+    entries: list[_Outline],
+    *,
+    skip_config: bool = False,
 ) -> list[Any]:
     flow: list[Any] = []
+    table_titles = {table.title for table in tables if table.kind == "table" and table.rows}
     if kpis:
+        _mark(entries, flow, "Indicadores", 1)
         flow.append(Paragraph("Indicadores", styles["chart"]))
         flow.extend(_grid(["Indicador", "Valor"], [[name, value] for name, value in kpis], styles))
     empties: list[str] = []
@@ -470,13 +594,21 @@ def _chart_flow(
             if table.title:
                 empties.append(table.title)
             continue
+        if skip_config and _is_config_change(table.title):
+            continue
+        if table.kind == "bubble" and table.title in table_titles:
+            continue
         shown = True
-        flow.append(Paragraph(_escape(table.title), styles["chart"]))
+        title = Paragraph(_escape(table.title), styles["chart"])
         image = _chart_image(table)
         if image is not None:
-            flow.append(image)
-            flow.append(Spacer(1, 0.3 * cm))
+            flow.append(CondPageBreak(7 * cm))
+            _mark(entries, flow, table.title, 1)
+            flow.append(KeepTogether([title, image, Spacer(1, 0.3 * cm)]))
             continue
+        flow.append(CondPageBreak(4 * cm))
+        _mark(entries, flow, table.title, 1)
+        flow.append(title)
         if _is_series(table):
             start, end = _series_span(table)
             if start and end:
@@ -509,9 +641,11 @@ def _chart_image(table: ChartTable) -> Image | None:
     if not rendered:
         return None
     png, width, height = rendered
-    display_w = _CONTENT_WIDTH
+    display_w = _CONTENT_WIDTH * (0.72 if table.kind in {"pie", "bubble-ring"} else 1)
     display_h = display_w * (height / width)
-    return Image(BytesIO(png), width=display_w, height=display_h)
+    image = Image(BytesIO(png), width=display_w, height=display_h)
+    image.hAlign = "CENTER"
+    return image
 
 
 def _is_series(table: ChartTable) -> bool:
@@ -560,14 +694,51 @@ def _series_summary(table: ChartTable) -> list[list[str]]:
     return [row for _score, row in summary]
 
 
+def _is_config_change(title: str) -> bool:
+    return "CONFIGURA" in title.upper()
+
+
+def _display_cell(header: str, value: str) -> str:
+    if "byte" not in header.lower():
+        return value
+    number = _as_number(value.replace(" ", ""))
+    if number is None or number < 1_000_000 or any(suffix in value.upper() for suffix in ("KB", "MB", "GB", "TB")):
+        return value
+    return f"{number / 1_000_000_000:.2f} GB"
+
+
+def _column_widths(headers: list[str], rows: list[list[str]]) -> list[float]:
+    count = max(len(headers), 1)
+    weights: list[int] = []
+    for index, name in enumerate(headers):
+        lengths = [len(name)]
+        for row in rows[:40]:
+            if index < len(row):
+                lengths.append(min(len(row[index]), 36))
+        weights.append(max(max(lengths), 4))
+    total = sum(weights) or 1
+    raw = [_CONTENT_WIDTH * weight / total for weight in weights]
+    low = _CONTENT_WIDTH / count * 0.62
+    high = _CONTENT_WIDTH / count * 2.1
+    clamped = [min(high, max(low, width)) for width in raw]
+    scale = _CONTENT_WIDTH / sum(clamped)
+    return [width * scale for width in clamped]
+
+
 def _grid(headers: list[str], rows: list[list[str]], styles: dict) -> list[Any]:
     if not headers or not rows:
         return []
-    head = [Paragraph(_escape(name or "—"), styles["cell"]) for name in headers]
-    body = [[Paragraph(_escape(cell), styles["cell"]) for cell in row] for row in rows]
-    width = _CONTENT_WIDTH
-    col_width = width / max(len(headers), 1)
-    grid = Table([head, *body], colWidths=[col_width] * len(headers), repeatRows=1)
+    shown = []
+    for row in rows:
+        shown.append(
+            [
+                _display_cell(headers[index], row[index] if index < len(row) else "")
+                for index in range(len(headers))
+            ]
+        )
+    head = [Paragraph(_escape(name or "—"), styles["head"]) for name in headers]
+    body = [[Paragraph(_escape(cell), styles["cell"]) for cell in row] for row in shown]
+    grid = Table([head, *body], colWidths=_column_widths(headers, shown), repeatRows=1)
     grid.setStyle(
         TableStyle(
             [
@@ -576,8 +747,8 @@ def _grid(headers: list[str], rows: list[list[str]], styles: dict) -> list[Any]:
                 ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
                 ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#d0d7de")),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 3),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 3),
+                ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
                 ("TOPPADDING", (0, 0), (-1, -1), 2),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
             ]
@@ -594,21 +765,14 @@ def _styles() -> dict[str, ParagraphStyle]:
         "meta": ParagraphStyle("meta", fontName="Helvetica", fontSize=9, textColor=colors.HexColor("#444444"), spaceAfter=2),
         "body": ParagraphStyle("body", fontName="Helvetica", fontSize=9, spaceAfter=2),
         "note": ParagraphStyle("note", fontName="Helvetica-Oblique", fontSize=9, textColor=colors.HexColor("#666666"), spaceAfter=4),
-        "cell": ParagraphStyle("cell", fontName="Helvetica", fontSize=7, leading=9),
+        "head": ParagraphStyle("head", fontName="Helvetica-Bold", fontSize=7, leading=9, textColor=colors.white),
+        "cell": ParagraphStyle("cell", fontName="Helvetica", fontSize=7, leading=9, textColor=colors.HexColor("#222222")),
     }
 
 
-def _subtitle(settings: Settings, cycle: str, when: datetime) -> str:
+def _subtitle(settings: Settings, period: str) -> str:
     client = settings.client_display_name or settings.client_slug or "cliente"
-    if cycle == "diario":
-        window = closed_through(when).strftime("%d/%m/%Y")
-    elif cycle == "semanal":
-        start, end = completed_week(when)
-        window = f"{start.strftime('%d/%m/%Y')} a {end.strftime('%d/%m/%Y')}"
-    else:
-        start, end = previous_month(when) if when.day == 1 else (when.date().replace(day=1), closed_through(when))
-        window = f"{start.strftime('%d/%m/%Y')} a {end.strftime('%d/%m/%Y')}"
-    return _escape(f"{client} · ADOM {settings.faz_adom or '-'} · {window}")
+    return _escape(f"{client} · ADOM {settings.faz_adom or '-'} · {period}")
 
 
 def _file_caption(item: HarvestItemRef) -> str:
