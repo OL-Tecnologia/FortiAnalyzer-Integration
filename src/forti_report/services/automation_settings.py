@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from forti_report.config import Settings, get_settings
@@ -75,6 +75,8 @@ class AutomationSettingsView:
     smtp_cc: str
     smtp_alert_to: str
     next_run_at: str = ""
+    schedules: dict = field(default_factory=dict)
+    next_runs: dict = field(default_factory=dict)
 
 
 def _as_bool(value: str | bool) -> bool:
@@ -88,7 +90,7 @@ def get_automation_settings(settings: Settings | None = None) -> AutomationSetti
     from forti_report.services.mensal_scheduler import get_scheduler_status
 
     status = get_scheduler_status(settings)
-    return AutomationSettingsView(
+    view = AutomationSettingsView(
         faz_user=settings.faz_user,
         faz_password_set=bool(settings.faz_password),
         mensal_schedule_enabled=settings.mensal_schedule_enabled,
@@ -115,6 +117,104 @@ def get_automation_settings(settings: Settings | None = None) -> AutomationSetti
         smtp_alert_to=settings.smtp_alert_to,
         next_run_at=status.next_run_at,
     )
+    schedules, next_runs, earliest = _report_clocks(settings)
+    view.schedules = schedules
+    view.next_runs = next_runs
+    if earliest:
+        view.next_run_at = earliest
+    return view
+
+
+def _report_clocks(settings: Settings) -> tuple[dict, dict, str]:
+    from forti_report.services.cycle_schedule import clocks_from_settings, now_in_tz, upcoming_runs
+
+    clocks = clocks_from_settings(settings)
+    schedules: dict[str, dict] = {}
+    for name, clock in clocks.items():
+        item = {"enabled": clock.enabled, "hour": clock.hour, "minute": clock.minute}
+        if name == "semanal":
+            item["weekday"] = clock.weekday
+        if name == "mensal":
+            item["day"] = clock.day
+        schedules[name] = item
+    runs = upcoming_runs(now_in_tz(settings), clocks)
+    next_runs = {name: moment.isoformat(timespec="minutes") for name, moment in runs.items()}
+    earliest = min(runs.values()).isoformat(timespec="minutes") if runs else ""
+    return schedules, next_runs, earliest
+
+
+def update_client_automation(client, payload: dict):
+    """Grava o horário de cada PDF e o e-mail no tenant da sessão."""
+    from forti_report.clients.models import ClientConfig
+
+    data = client.model_dump()
+    schedule = dict(data.get("schedule") or {})
+    if payload.get("mensal_schedule_enabled") is not None:
+        schedule["enabled"] = bool(payload["mensal_schedule_enabled"])
+    if payload.get("mensal_schedule_timezone"):
+        schedule["timezone"] = str(payload["mensal_schedule_timezone"]).strip()
+    if payload.get("mensal_schedule_retry_enabled") is not None:
+        schedule["retry_enabled"] = bool(payload["mensal_schedule_retry_enabled"])
+    if payload.get("mensal_schedule_retry_hours") is not None:
+        schedule["retry_hours"] = _bounded("intervalo", payload["mensal_schedule_retry_hours"], 1, 168)
+    if payload.get("mensal_schedule_max_retries") is not None:
+        schedule["max_retries"] = _bounded("tentativas", payload["mensal_schedule_max_retries"], 1, 20)
+
+    incoming = payload.get("schedules")
+    if isinstance(incoming, dict):
+        for name in ("diario", "semanal", "mensal"):
+            piece = incoming.get(name)
+            if not isinstance(piece, dict):
+                continue
+            current = dict(schedule.get(name) or {})
+            if piece.get("enabled") is not None:
+                current["enabled"] = bool(piece["enabled"])
+            if piece.get("hour") is not None:
+                current["hour"] = _bounded(f"hora do {name}", piece["hour"], 0, 23)
+            if piece.get("minute") is not None:
+                current["minute"] = _bounded(f"minuto do {name}", piece["minute"], 0, 59)
+            if name == "semanal" and piece.get("weekday") is not None:
+                current["weekday"] = _bounded("dia da semana", piece["weekday"], 0, 6)
+            if name == "mensal" and piece.get("day") is not None:
+                current["day"] = _bounded("dia do mês", piece["day"], 1, 28)
+            schedule[name] = current
+    elif any(key in payload for key in ("mensal_schedule_hour", "mensal_schedule_minute", "mensal_schedule_day")):
+        for name in ("diario", "semanal", "mensal"):
+            current = dict(schedule.get(name) or {})
+            if payload.get("mensal_schedule_hour") is not None:
+                current["hour"] = _bounded("hora", payload["mensal_schedule_hour"], 0, 23)
+            if payload.get("mensal_schedule_minute") is not None:
+                current["minute"] = _bounded("minuto", payload["mensal_schedule_minute"], 0, 59)
+            if name == "mensal" and payload.get("mensal_schedule_day") is not None:
+                current["day"] = _bounded("dia do mês", payload["mensal_schedule_day"], 1, 28)
+            schedule[name] = current
+
+    diario = schedule.get("diario") or {}
+    if diario.get("hour") is not None:
+        schedule["hour"] = int(diario["hour"])
+    if diario.get("minute") is not None:
+        schedule["minute"] = int(diario["minute"])
+    mensal = schedule.get("mensal") or {}
+    if mensal.get("day") is not None:
+        schedule["day"] = int(mensal["day"])
+    data["schedule"] = schedule
+
+    email = dict(data.get("email") or {})
+    for key in ("smtp_from", "smtp_to", "smtp_cc", "smtp_alert_to"):
+        if key in payload and payload[key] is not None:
+            email[key] = str(payload[key]).strip()
+    data["email"] = email
+    return ClientConfig.model_validate(data)
+
+
+def _bounded(label: str, value, low: int, high: int) -> int:
+    try:
+        number = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{label} inválido") from exc
+    if number < low or number > high:
+        raise ValueError(f"{label} deve estar entre {low} e {high}")
+    return number
 
 
 def _bool_env(value: bool) -> str:

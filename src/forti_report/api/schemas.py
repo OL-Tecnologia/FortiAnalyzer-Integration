@@ -130,6 +130,8 @@ class AutomationSettingsResponse(BaseModel):
     smtp_cc: str
     smtp_alert_to: str
     next_run_at: str = ""
+    schedules: dict[str, Any] = Field(default_factory=dict)
+    next_runs: dict[str, str] = Field(default_factory=dict)
 
 
 class AutomationSettingsUpdate(BaseModel):
@@ -159,3 +161,4 @@ class AutomationSettingsUpdate(BaseModel):
     smtp_to: str | None = Field(None, max_length=512)
     smtp_cc: str | None = Field(None, max_length=512)
     smtp_alert_to: str | None = Field(None, max_length=512)
+    schedules: dict[str, Any] | None = None

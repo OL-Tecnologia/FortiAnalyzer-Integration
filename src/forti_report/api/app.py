@@ -78,6 +78,7 @@ from forti_report.runtime_paths import frontend_dir
 from forti_report.services.automation_settings import (
     get_automation_settings,
     update_automation_settings,
+    update_client_automation,
 )
 from forti_report.services.job_store import JobRecord
 from forti_report.services.mensal_job import get_job_store, start_mensal_job
@@ -417,6 +418,7 @@ def _admin_save_client(
         raise HTTPException(400, str(exc)) from exc
     except OSError as exc:
         raise HTTPException(500, f"Não foi possível gravar cliente: {exc}") from exc
+    _restart_scheduler()
     return saved.admin_dict(automation_password_set=automation_password_set(saved))
 
 
@@ -636,11 +638,26 @@ def scheduler_status(
     )
 
 
+def _session_client(session: FazPortalSession) -> ClientConfig | None:
+    if not session.client_slug:
+        return None
+    return get_client(session.client_slug, include_disabled=True)
+
+
+def _restart_scheduler() -> None:
+    stop_background_scheduler()
+    start_background_scheduler()
+
+
 @app.get("/api/settings/automation", response_model=AutomationSettingsResponse)
 def get_automation_config(
     session: FazPortalSession = Depends(require_faz_session),
 ) -> AutomationSettingsResponse:
-    view = get_automation_settings()
+    client = _session_client(session)
+    if client is not None:
+        view = get_automation_settings(settings_from_client(client, use_automation_credentials=True))
+    else:
+        view = get_automation_settings()
     return AutomationSettingsResponse(**view.__dict__)
 
 
@@ -649,8 +666,21 @@ def put_automation_config(
     body: AutomationSettingsUpdate,
     session: FazPortalSession = Depends(require_faz_session),
 ) -> AutomationSettingsResponse:
+    payload = body.model_dump(exclude_unset=True)
+    client = _session_client(session)
+    if client is not None:
+        try:
+            updated = update_client_automation(client, payload)
+            save_client(updated)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        except OSError as exc:
+            raise HTTPException(500, f"Não foi possível gravar o cliente: {exc}") from exc
+        _restart_scheduler()
+        view = get_automation_settings(settings_from_client(updated, use_automation_credentials=True))
+        return AutomationSettingsResponse(**view.__dict__)
     try:
-        view = update_automation_settings(body.model_dump(exclude_unset=True))
+        view = update_automation_settings(payload)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     except OSError as exc:

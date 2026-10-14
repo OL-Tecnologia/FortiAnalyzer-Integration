@@ -101,6 +101,18 @@ def settings_from_client(
         "mensal_schedule_retry_enabled": client.schedule.retry_enabled,
         "mensal_schedule_max_retries": client.schedule.max_retries,
         "mensal_schedule_retry_hours": client.schedule.retry_hours,
+        "report_schedules_configured": True,
+        "report_diario_enabled": client.schedule.diario.enabled,
+        "report_diario_hour": client.schedule.diario.hour,
+        "report_diario_minute": client.schedule.diario.minute,
+        "report_semanal_enabled": client.schedule.semanal.enabled,
+        "report_semanal_weekday": client.schedule.semanal.weekday,
+        "report_semanal_hour": client.schedule.semanal.hour,
+        "report_semanal_minute": client.schedule.semanal.minute,
+        "report_mensal_enabled": client.schedule.mensal.enabled,
+        "report_mensal_day": client.schedule.mensal.day,
+        "report_mensal_hour": client.schedule.mensal.hour,
+        "report_mensal_minute": client.schedule.mensal.minute,
     }
     if client.email.smtp_from:
         updates["smtp_from"] = client.email.smtp_from

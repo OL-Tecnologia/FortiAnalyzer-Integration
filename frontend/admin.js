@@ -7,6 +7,99 @@ function apiUrl(path) {
 
 const el = (id) => document.getElementById(id);
 
+const RUN_LABELS = { diario: "Diário", semanal: "Semanal", mensal: "Mensal" };
+
+function formatRun(iso) {
+  if (!iso) return "desligado";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: "America/Sao_Paulo",
+  }).format(date);
+}
+
+function paintNextRuns(box, runs, schedules, masterEnabled) {
+  if (!box) return;
+  box.replaceChildren();
+  if (masterEnabled === false) {
+    const note = document.createElement("li");
+    note.textContent = "Envio automático desligado";
+    box.appendChild(note);
+  }
+  for (const key of ["diario", "semanal", "mensal"]) {
+    const li = document.createElement("li");
+    const enabled = schedules?.[key]?.enabled !== false;
+    li.textContent = `${RUN_LABELS[key]}: ${enabled && runs[key] ? formatRun(runs[key]) : "desligado"}`;
+    box.appendChild(li);
+  }
+}
+
+function readClock(prefix) {
+  return {
+    enabled: el(prefix + "Enabled").checked,
+    hour: Number(el(prefix + "Hour").value),
+    minute: Number(el(prefix + "Minute").value),
+  };
+}
+
+function readScheduleFields(enabledId) {
+  const diario = readClock("cfgDiario");
+  const semanal = readClock("cfgSemanal");
+  const mensal = readClock("cfgMensal");
+  semanal.weekday = Number(el("cfgSemanalWeekday").value);
+  mensal.day = Number(el("cfgMensalDay").value);
+  return {
+    enabled: el(enabledId).checked,
+    hour: diario.hour,
+    minute: diario.minute,
+    day: mensal.day,
+    diario,
+    semanal,
+    mensal,
+  };
+}
+
+function fillClock(prefix, report, hour, minute) {
+  const item = report || {};
+  el(prefix + "Enabled").checked = item.enabled !== false;
+  el(prefix + "Hour").value = item.hour ?? hour;
+  el(prefix + "Minute").value = item.minute ?? minute;
+}
+
+function fillScheduleFields(enabledId, schedule, hour, minute) {
+  el(enabledId).checked = !!schedule.enabled;
+  fillClock("cfgDiario", schedule.diario, hour, minute);
+  fillClock("cfgSemanal", schedule.semanal, hour, minute);
+  el("cfgSemanalWeekday").value = String(schedule.semanal?.weekday ?? 0);
+  fillClock("cfgMensal", schedule.mensal, hour, minute);
+  el("cfgMensalDay").value = schedule.mensal?.day ?? 1;
+}
+
+function validateSchedule(schedule) {
+  const clocks = [
+    ["diário", schedule.diario],
+    ["semanal", schedule.semanal],
+    ["mensal", schedule.mensal],
+  ];
+  for (const [label, clock] of clocks) {
+    if (!Number.isInteger(clock.hour) || clock.hour < 0 || clock.hour > 23) {
+      return `Hora do ${label} deve estar entre 0 e 23.`;
+    }
+    if (!Number.isInteger(clock.minute) || clock.minute < 0 || clock.minute > 59) {
+      return `Minuto do ${label} deve estar entre 0 e 59.`;
+    }
+  }
+  if (!Number.isInteger(schedule.semanal.weekday) || schedule.semanal.weekday < 0 || schedule.semanal.weekday > 6) {
+    return "Escolha o dia da semana do relatório semanal.";
+  }
+  if (!Number.isInteger(schedule.mensal.day) || schedule.mensal.day < 1 || schedule.mensal.day > 28) {
+    return "Dia do mês do relatório mensal deve estar entre 1 e 28.";
+  }
+  return "";
+}
+
 let editingSlug = null;
 
 function showMsg(text, ok) {
@@ -67,12 +160,7 @@ function draftFromForm() {
     automation: {
       faz_user: el("cfgAutoUser").value.trim(),
     },
-    schedule: {
-      enabled: el("cfgSchedEnabled").checked,
-      day: Number(el("cfgSchedDay").value || 5),
-      hour: Number(el("cfgSchedHour").value || 6),
-      minute: Number(el("cfgSchedMinute").value || 0),
-    },
+    schedule: readScheduleFields("cfgSchedEnabled"),
     email: {
       smtp_from: el("cfgSmtpFrom").value.trim(),
       smtp_to: el("cfgSmtpTo").value.trim(),
@@ -361,10 +449,8 @@ function fillForm(client) {
   el("cfgAutoPasswordHint").textContent = client.automation_password_set
     ? "Senha de automação já cadastrada (deixe em branco para manter)."
     : "Nenhuma senha de automação cadastrada ainda.";
-  el("cfgSchedEnabled").checked = !!client.schedule?.enabled;
-  el("cfgSchedDay").value = client.schedule?.day ?? 5;
-  el("cfgSchedHour").value = client.schedule?.hour ?? 6;
-  el("cfgSchedMinute").value = client.schedule?.minute ?? 0;
+  fillScheduleFields("cfgSchedEnabled", client.schedule || {}, client.schedule?.hour ?? 6, client.schedule?.minute ?? 0);
+  paintNextRuns(el("cfgNextRuns"), client.next_runs || {}, client.schedule || {}, !!client.schedule?.enabled);
   el("cfgSmtpFrom").value = client.email?.smtp_from || "";
   el("cfgSmtpTo").value = client.email?.smtp_to || "";
   el("cfgSmtpCc").value = client.email?.smtp_cc || "";
@@ -386,6 +472,7 @@ function fillForm(client) {
 function resetForm() {
   editingSlug = null;
   el("clientForm").reset();
+  el("cfgNextRuns")?.replaceChildren();
   el("cfgSlug").disabled = false;
   el("cfgEnabled").checked = true;
   el("cfgFazSsl").checked = true;
@@ -573,6 +660,11 @@ async function init() {
     const draft = draftFromForm();
     if (!draft.slug) {
       showMsg("Informe o slug.", false);
+      return;
+    }
+    const scheduleError = validateSchedule(draft.schedule);
+    if (scheduleError) {
+      showMsg(scheduleError, false);
       return;
     }
     const password = el("cfgAutoPassword").value;

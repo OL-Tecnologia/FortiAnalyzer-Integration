@@ -9,7 +9,13 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from forti_report.config import Settings
-from forti_report.services.cycle_schedule import cycles_due, next_slot, now_in_tz, period_key
+from forti_report.services.cycle_schedule import (
+    clocks_from_settings,
+    cycles_due,
+    next_slot,
+    now_in_tz,
+    period_key,
+)
 from forti_report.services.consolidated import generate_consolidated
 
 logger = logging.getLogger(__name__)
@@ -56,11 +62,8 @@ def run_due_cycles(
 ) -> list[CycleRunResult]:
     """Gera os ciclos que já passaram das 06:00 (ou da hora do cliente) e ainda não saíram hoje."""
     moment = when or now_in_tz(settings)
-    due = cycles_due(
-        moment,
-        hour=settings.mensal_schedule_hour,
-        minute=settings.mensal_schedule_minute,
-    )
+    clocks = clocks_from_settings(settings)
+    due = cycles_due(moment, clocks)
     state = load_cycle_state(settings)
     pending = [cycle for cycle in due if _needs_run(settings, state, cycle, moment)]
     if not pending:
@@ -97,11 +100,7 @@ def run_due_cycles(
 
 def seconds_until_next_slot(settings: Settings, *, when: datetime | None = None) -> float:
     moment = when or now_in_tz(settings)
-    slot = next_slot(
-        moment,
-        hour=settings.mensal_schedule_hour,
-        minute=settings.mensal_schedule_minute,
-    )
+    slot = next_slot(moment, clocks_from_settings(settings))
     return max(1.0, (slot - moment).total_seconds())
 
 
