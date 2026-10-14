@@ -73,17 +73,58 @@ class OutputClientConfig(BaseModel):
     subdir: str = ""
 
 
+class ReportSendSchedule(BaseModel):
+    """Horário de um PDF. O diário sai todo dia."""
+
+    enabled: bool = True
+    hour: int = Field(6, ge=0, le=23)
+    minute: int = Field(0, ge=0, le=59)
+
+
+class WeeklySendSchedule(ReportSendSchedule):
+    weekday: int = Field(0, ge=0, le=6)
+
+
+class MonthlySendSchedule(ReportSendSchedule):
+    day: int = Field(1, ge=1, le=28)
+
+
 class ScheduleClientConfig(BaseModel):
     enabled: bool = False
     day: int = Field(5, ge=1, le=28)
     hour: int = Field(6, ge=0, le=23)
     minute: int = Field(0, ge=0, le=59)
     timezone: str = "America/Sao_Paulo"
+    diario: ReportSendSchedule | None = None
+    semanal: WeeklySendSchedule | None = None
+    mensal: MonthlySendSchedule | None = None
     days: int = Field(60, ge=1, le=365)
     force_download: bool = True
     retry_enabled: bool = True
     max_retries: int = Field(3, ge=1, le=20)
     retry_hours: int = Field(2, ge=1, le=168)
+
+    @model_validator(mode="after")
+    def _fill_report_schedules(self) -> ScheduleClientConfig:
+        """Cliente antigo tinha um relógio só. Cada PDF herda essa hora; o mensal nasce no dia 1."""
+        if self.diario is None:
+            self.diario = ReportSendSchedule(hour=self.hour, minute=self.minute)
+        if self.semanal is None:
+            self.semanal = WeeklySendSchedule(weekday=0, hour=self.hour, minute=self.minute)
+        if self.mensal is None:
+            self.mensal = MonthlySendSchedule(day=1, hour=self.hour, minute=self.minute)
+        return self
+
+
+def _next_runs(schedule: ScheduleClientConfig) -> dict[str, str]:
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from forti_report.services.cycle_schedule import clocks_from_schedule, upcoming_runs
+
+    when = datetime.now(ZoneInfo(schedule.timezone or "America/Sao_Paulo"))
+    runs = upcoming_runs(when, clocks_from_schedule(schedule))
+    return {name: moment.isoformat(timespec="minutes") for name, moment in runs.items()}
 
 
 class EmailClientConfig(BaseModel):
@@ -132,4 +173,5 @@ class ClientConfig(BaseModel):
             "faz_password_env": self.automation.faz_password_env,
             "faz_password_set": automation_password_set,
         }
+        data["next_runs"] = _next_runs(self.schedule)
         return data

@@ -307,7 +307,7 @@ h1 {
   position: relative;
   z-index: 1;
   width: 100%;
-  max-width: 560px;
+  max-width: 640px;
   margin: 1rem auto;
   background: var(--card);
   border: 1px solid var(--border);
@@ -465,6 +465,32 @@ body.modal-open {
 .field-hint {
   font-size: 0.75rem;
   color: var(--muted);
+}
+
+.schedule-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.75rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.schedule-block h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.schedule-block .field-hint {
+  margin: 0;
+}
+
+.next-runs {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--muted);
+  font-size: 0.8rem;
 }
 
 .config-msg {

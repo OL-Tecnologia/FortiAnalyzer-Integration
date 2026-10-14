@@ -15,6 +15,99 @@ const PHASES = [
 
 const el = (id) => document.getElementById(id);
 
+const RUN_LABELS = { diario: "Diário", semanal: "Semanal", mensal: "Mensal" };
+
+function formatRun(iso) {
+  if (!iso) return "desligado";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: "America/Sao_Paulo",
+  }).format(date);
+}
+
+function paintNextRuns(box, runs, schedules, masterEnabled) {
+  if (!box) return;
+  box.replaceChildren();
+  if (masterEnabled === false) {
+    const note = document.createElement("li");
+    note.textContent = "Envio automático desligado";
+    box.appendChild(note);
+  }
+  for (const key of ["diario", "semanal", "mensal"]) {
+    const li = document.createElement("li");
+    const enabled = schedules?.[key]?.enabled !== false;
+    li.textContent = `${RUN_LABELS[key]}: ${enabled && runs[key] ? formatRun(runs[key]) : "desligado"}`;
+    box.appendChild(li);
+  }
+}
+
+function readClock(prefix) {
+  return {
+    enabled: el(prefix + "Enabled").checked,
+    hour: Number(el(prefix + "Hour").value),
+    minute: Number(el(prefix + "Minute").value),
+  };
+}
+
+function readScheduleFields(enabledId) {
+  const diario = readClock("cfgDiario");
+  const semanal = readClock("cfgSemanal");
+  const mensal = readClock("cfgMensal");
+  semanal.weekday = Number(el("cfgSemanalWeekday").value);
+  mensal.day = Number(el("cfgMensalDay").value);
+  return {
+    enabled: el(enabledId).checked,
+    hour: diario.hour,
+    minute: diario.minute,
+    day: mensal.day,
+    diario,
+    semanal,
+    mensal,
+  };
+}
+
+function fillClock(prefix, report, hour, minute) {
+  const item = report || {};
+  el(prefix + "Enabled").checked = item.enabled !== false;
+  el(prefix + "Hour").value = item.hour ?? hour;
+  el(prefix + "Minute").value = item.minute ?? minute;
+}
+
+function fillScheduleFields(enabledId, schedule, hour, minute) {
+  el(enabledId).checked = !!schedule.enabled;
+  fillClock("cfgDiario", schedule.diario, hour, minute);
+  fillClock("cfgSemanal", schedule.semanal, hour, minute);
+  el("cfgSemanalWeekday").value = String(schedule.semanal?.weekday ?? 0);
+  fillClock("cfgMensal", schedule.mensal, hour, minute);
+  el("cfgMensalDay").value = schedule.mensal?.day ?? 1;
+}
+
+function validateSchedule(schedule) {
+  const clocks = [
+    ["diário", schedule.diario],
+    ["semanal", schedule.semanal],
+    ["mensal", schedule.mensal],
+  ];
+  for (const [label, clock] of clocks) {
+    if (!Number.isInteger(clock.hour) || clock.hour < 0 || clock.hour > 23) {
+      return `Hora do ${label} deve estar entre 0 e 23.`;
+    }
+    if (!Number.isInteger(clock.minute) || clock.minute < 0 || clock.minute > 59) {
+      return `Minuto do ${label} deve estar entre 0 e 59.`;
+    }
+  }
+  if (!Number.isInteger(schedule.semanal.weekday) || schedule.semanal.weekday < 0 || schedule.semanal.weekday > 6) {
+    return "Escolha o dia da semana do relatório semanal.";
+  }
+  if (!Number.isInteger(schedule.mensal.day) || schedule.mensal.day < 1 || schedule.mensal.day > 28) {
+    return "Dia do mês do relatório mensal deve estar entre 1 e 28.";
+  }
+  return "";
+}
+
 const btnGenerate = el("btnGenerate");
 const btnLogout = el("btnLogout");
 const userLabel = el("userLabel");
@@ -439,17 +532,21 @@ function syncRetryOptions() {
 }
 
 function fillConfigForm(data) {
-  el("cfgScheduleEnabled").checked = !!data.mensal_schedule_enabled;
-  el("cfgDay").value = data.mensal_schedule_day;
-  el("cfgHour").value = data.mensal_schedule_hour;
-  el("cfgMinute").value = data.mensal_schedule_minute;
+  const schedules = data.schedules || {};
+  fillScheduleFields("cfgScheduleEnabled", {
+    enabled: !!data.mensal_schedule_enabled,
+    diario: schedules.diario,
+    semanal: schedules.semanal,
+    mensal: schedules.mensal,
+  }, data.mensal_schedule_hour ?? 6, data.mensal_schedule_minute ?? 0);
+  if (!schedules.mensal && data.mensal_schedule_day) {
+    el("cfgMensalDay").value = data.mensal_schedule_day;
+  }
   el("cfgRetryEnabled").checked = data.mensal_schedule_retry_enabled !== false;
   el("cfgRetryHours").value = data.mensal_schedule_retry_hours || 2;
   el("cfgRetryMax").value = data.mensal_schedule_max_retries || 3;
   syncRetryOptions();
-  el("cfgNextRun").textContent = data.next_run_at
-    ? `Próxima execução: ${data.next_run_at} (America/Sao_Paulo)`
-    : "Fuso: America/Sao_Paulo";
+  paintNextRuns(el("cfgNextRun"), data.next_runs || {}, data.schedules || {}, !!data.mensal_schedule_enabled);
   el("cfgSmtpFrom").value = data.smtp_from || "";
   el("cfgSmtpTo").value = data.smtp_to || "";
   el("cfgSmtpCc").value = data.smtp_cc || "";
@@ -511,12 +608,24 @@ async function saveAutomationConfig(ev) {
     }
   }
 
+  const schedule = readScheduleFields("cfgScheduleEnabled");
+  const invalid = validateSchedule(schedule);
+  if (invalid) {
+    showConfigMsg(invalid, false);
+    btn.disabled = false;
+    return;
+  }
   const body = {
-    mensal_schedule_enabled: el("cfgScheduleEnabled").checked,
-    mensal_schedule_day: Number(el("cfgDay").value),
-    mensal_schedule_hour: Number(el("cfgHour").value),
-    mensal_schedule_minute: Number(el("cfgMinute").value),
+    mensal_schedule_enabled: schedule.enabled,
+    mensal_schedule_day: schedule.mensal.day,
+    mensal_schedule_hour: schedule.diario.hour,
+    mensal_schedule_minute: schedule.diario.minute,
     mensal_schedule_timezone: "America/Sao_Paulo",
+    schedules: {
+      diario: schedule.diario,
+      semanal: schedule.semanal,
+      mensal: schedule.mensal,
+    },
     mensal_schedule_retry_enabled: retryEnabled,
     mensal_schedule_retry_hours: retryEnabled ? retryHours : undefined,
     mensal_schedule_max_retries: retryEnabled ? retryMax : undefined,

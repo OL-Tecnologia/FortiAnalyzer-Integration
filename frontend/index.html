@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Relatório MENSAL — FortiAnalyzer</title>
-  <link rel="stylesheet" href="styles.css?v=7" />
+  <link rel="stylesheet" href="styles.css?v=8" />
 </head>
 <body>
   <div class="page">
@@ -74,7 +74,7 @@
               Mensal — layouts mensais
             </label>
           </div>
-          <p class="field-hint">Diário sai todo dia às 06:00. Semanal, na segunda. Mensal, no dia 1, junto com o diário.</p>
+          <p class="field-hint">O horário de cada relatório fica em Configuração da automação.</p>
           <p class="config-msg hidden" id="reportPickMsg"></p>
         </div>
       </div>
@@ -138,7 +138,7 @@
         </button>
       </div>
       <p class="config-hint">
-        Ajuste o dia/hora do envio automático e os e-mails do cliente da sessão.
+        Ajuste o horário de envio de cada relatório e os e-mails do cliente da sessão.
         Credenciais FAZ ficam na tela de login; SMTP técnico permanece no .env.
       </p>
 
@@ -149,19 +149,54 @@
             <input type="checkbox" id="cfgScheduleEnabled" />
             Habilitar envio automático
           </label>
-          <div class="config-row">
-            <label class="field">
-              Dia do mês
-              <input type="number" id="cfgDay" min="1" max="28" />
+          <p class="field-hint">Cada relatório sai no próprio horário. Nada é enviado enquanto esta opção estiver desligada.</p>
+          <div class="schedule-block">
+            <h3>Diário</h3>
+            <p class="field-hint">Sai todo dia.</p>
+            <label class="check">
+              <input type="checkbox" id="cfgDiarioEnabled" checked />
+              Enviar este relatório
             </label>
-            <label class="field">
-              Hora
-              <input type="number" id="cfgHour" min="0" max="23" />
+            <div class="config-row">
+              <label class="field">Hora<input type="number" id="cfgDiarioHour" min="0" max="23" value="6" /></label>
+              <label class="field">Minuto<input type="number" id="cfgDiarioMinute" min="0" max="59" value="0" /></label>
+            </div>
+          </div>
+          <div class="schedule-block">
+            <h3>Semanal</h3>
+            <p class="field-hint">Sai uma vez por semana.</p>
+            <label class="check">
+              <input type="checkbox" id="cfgSemanalEnabled" checked />
+              Enviar este relatório
             </label>
-            <label class="field">
-              Minuto
-              <input type="number" id="cfgMinute" min="0" max="59" />
+            <div class="config-row">
+              <label class="field">Dia da semana
+                <select id="cfgSemanalWeekday">
+                  <option value="0" selected>Segunda-feira</option>
+                  <option value="1">Terça-feira</option>
+                  <option value="2">Quarta-feira</option>
+                  <option value="3">Quinta-feira</option>
+                  <option value="4">Sexta-feira</option>
+                  <option value="5">Sábado</option>
+                  <option value="6">Domingo</option>
+                </select>
+              </label>
+              <label class="field">Hora<input type="number" id="cfgSemanalHour" min="0" max="23" value="6" /></label>
+              <label class="field">Minuto<input type="number" id="cfgSemanalMinute" min="0" max="59" value="0" /></label>
+            </div>
+          </div>
+          <div class="schedule-block">
+            <h3>Mensal</h3>
+            <p class="field-hint">Sai uma vez por mês.</p>
+            <label class="check">
+              <input type="checkbox" id="cfgMensalEnabled" checked />
+              Enviar este relatório
             </label>
+            <div class="config-row">
+              <label class="field">Dia do mês<input type="number" id="cfgMensalDay" min="1" max="28" value="1" /></label>
+              <label class="field">Hora<input type="number" id="cfgMensalHour" min="0" max="23" value="6" /></label>
+              <label class="field">Minuto<input type="number" id="cfgMensalMinute" min="0" max="59" value="0" /></label>
+            </div>
           </div>
           <label class="check">
             <input type="checkbox" id="cfgRetryEnabled" />
@@ -177,7 +212,8 @@
               <input type="number" id="cfgRetryMax" min="2" max="20" step="1" placeholder="Ex.: 3" />
             </label>
           </div>
-          <p class="field-hint" id="cfgNextRun"></p>
+          <p class="field-hint">Próximos envios da configuração salva</p>
+          <ul class="next-runs" id="cfgNextRun"></ul>
         </fieldset>
 
         <fieldset class="config-group">
@@ -208,6 +244,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=7"></script>
+  <script src="app.js?v=8"></script>
 </body>
 </html>

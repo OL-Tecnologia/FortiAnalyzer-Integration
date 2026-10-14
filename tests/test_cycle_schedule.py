@@ -270,3 +270,66 @@ def test_linha_corta_dias_zerados_e_pizza_guarda_dez_fatias():
     assert list(line.data[0].y) == [2.0, 4.0]
     assert line.layout.yaxis.title.text == "GB"
 
+
+def test_cada_relatorio_respeita_o_proprio_horario():
+    from forti_report.services.cycle_schedule import CycleClock, next_slot
+
+    clocks = {
+        "diario": CycleClock(hour=6, minute=0),
+        "semanal": CycleClock(hour=7, minute=30, weekday=0),
+        "mensal": CycleClock(hour=8, minute=0, day=1),
+    }
+    monday = datetime(2026, 6, 1, 6, 0, tzinfo=TZ)
+    assert monday.weekday() == 0
+    assert cycles_due(monday, clocks) == ("diario",)
+    assert cycles_due(monday.replace(hour=7, minute=30), clocks) == ("diario", "semanal")
+    assert cycles_due(monday.replace(hour=8), clocks) == ("diario", "semanal", "mensal")
+    tuesday = datetime(2026, 10, 13, 8, 0, tzinfo=TZ)
+    assert cycles_due(tuesday, clocks) == ("diario",)
+    assert next_slot(datetime(2026, 10, 13, 10, 0, tzinfo=TZ), clocks) == datetime(2026, 10, 14, 6, 0, tzinfo=TZ)
+
+
+def test_relatorio_desligado_nao_entra_na_leva():
+    from forti_report.services.cycle_schedule import CycleClock
+
+    clocks = {
+        "diario": CycleClock(hour=6, minute=0),
+        "semanal": CycleClock(enabled=False, hour=6, minute=0, weekday=0),
+        "mensal": CycleClock(hour=6, minute=0, day=1),
+    }
+    when = datetime(2026, 6, 1, 6, 0, tzinfo=TZ)
+    assert cycles_due(when, clocks) == ("diario", "mensal")
+
+
+def test_cliente_antigo_ganha_um_horario_por_pdf():
+    from forti_report.clients.models import ClientConfig, ScheduleClientConfig
+    from forti_report.services.automation_settings import update_client_automation
+
+    schedule = ScheduleClientConfig.model_validate({"enabled": False, "day": 5, "hour": 8, "minute": 15})
+    assert schedule.diario.hour == 8
+    assert schedule.diario.minute == 15
+    assert schedule.semanal.weekday == 0
+    assert schedule.mensal.day == 1
+    assert schedule.mensal.hour == 8
+
+    client = ClientConfig(slug="ol", display_name="Ol", schedule=schedule)
+    updated = update_client_automation(
+        client,
+        {
+            "mensal_schedule_enabled": True,
+            "schedules": {
+                "diario": {"enabled": True, "hour": 6, "minute": 0},
+                "semanal": {"enabled": True, "weekday": 2, "hour": 7, "minute": 10},
+                "mensal": {"enabled": False, "day": 3, "hour": 9, "minute": 0},
+            },
+            "smtp_to": "cliente@empresa.com",
+        },
+    )
+    assert updated.schedule.enabled is True
+    assert updated.schedule.semanal.weekday == 2
+    assert updated.schedule.semanal.hour == 7
+    assert updated.schedule.mensal.enabled is False
+    assert updated.schedule.mensal.day == 3
+    assert updated.schedule.hour == 6
+    assert updated.email.smtp_to == "cliente@empresa.com"
+

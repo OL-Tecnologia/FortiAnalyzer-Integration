@@ -92,6 +92,19 @@ class Settings(BaseSettings):
     mensal_schedule_retry_enabled: bool = True
     mensal_schedule_max_retries: int = 3
     mensal_schedule_retry_hours: int = 2
+    # Preenchido a partir do tenant. Sem isso, os três PDFs usam a hora única acima.
+    report_schedules_configured: bool = False
+    report_diario_enabled: bool = True
+    report_diario_hour: int = 6
+    report_diario_minute: int = 0
+    report_semanal_enabled: bool = True
+    report_semanal_weekday: int = 0
+    report_semanal_hour: int = 6
+    report_semanal_minute: int = 0
+    report_mensal_enabled: bool = True
+    report_mensal_day: int = 1
+    report_mensal_hour: int = 6
+    report_mensal_minute: int = 0
     mensal_schedule_state_dir: Path = Field(default=PROJECT_ROOT / "output" / "scheduler")
 
     smtp_host: str = ""
