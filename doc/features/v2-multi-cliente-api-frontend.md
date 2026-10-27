@@ -2,8 +2,8 @@
 
 **Status:** planejado — **não implementar na V1**  
 **Data do documento:** 2026-06  
-**Atualização:** 2026-08 — a spec canônica de multi-tenant (Super Admin, automação por tenant, deploy SDE on-prem vs painel OL) está em **[multi-tenant-clientes-faz.md](multi-tenant-clientes-faz.md)**. Este doc permanece como rascunho de API/tenant.  
-**Contexto:** A OL Tecnologia atende diversos clientes além do Cruz Azul. O backend atual (CLI + `.env` único) atende um ADOM por vez. O frontend exigirá seleção de cliente, relatório e geração sob demanda.
+**Atualização:** 2026-08 — a spec canônica de multi-tenant (Super Admin, automação por tenant, deploy local de um tenant vs painel com vários tenants) está em **[multi-tenant-clientes-faz.md](multi-tenant-clientes-faz.md)**. Este doc permanece como rascunho de API/tenant.  
+**Contexto:** A OL Tecnologia atende diversos clientes além do Cliente. O backend atual (CLI + `.env` único) atende um ADOM por vez. O frontend exigirá seleção de cliente, relatório e geração sob demanda.
 
 ---
 
@@ -23,7 +23,7 @@
 | 2 | Permitir **configurar por cliente**: ADOM, schedule do relatório, assets, hierarquia de dispositivos |
 | 3 | Expor **API HTTP** consumível pelo frontend (gerar, status, download PDF) |
 | 4 | Manter regras V1 de **validação de cache** (TID/período) **isoladas por cliente** |
-| 5 | Generalizar o que hoje é **específico Cruz Azul** (regex hostname, unidades regionais, logos) |
+| 5 | Generalizar o que hoje é **específico Cliente** (regex hostname, unidades regionais, logos) |
 
 ---
 
@@ -31,18 +31,18 @@
 
 ### Cliente e relatório hoje
 
-| Parâmetro | Onde | Exemplo Cruz Azul |
+| Parâmetro | Onde | Exemplo Cliente |
 |-----------|------|-------------------|
-| Cliente (ADOM) | `FAZ_ADOM` | `CRUZ_AZUL` |
+| Cliente (ADOM) | `FAZ_ADOM` | `ADOM_EXEMPLO` |
 | Relatório MENSAL | `FAZ_REPORT_SCHEDULE` | `MENSAL- RELATÓRIO GERAL` |
 | Relatório WAN | `FAZ_WAN_REPORT_SCHEDULE` | `SEMANAL- RELATÓRIO TRÁFEGO WAN` |
 | Busca no FAZ | `find_latest_report_for_device` + filtro schedule | `faz/reports.py` |
 
-### Acoplamento Cruz Azul (deve virar config na V2)
+### Acoplamento Cliente (deve virar config na V2)
 
-- Regex de dispositivo: `fw-{reg}-cruz-azul-{site}` em `data/hierarchy.py`
+- Regex de dispositivo: `fw-{reg}-exemplo-{site}` em `data/hierarchy.py`
 - Rótulos de unidades: `REGION_LABELS` (CAS, SPO, …)
-- Logo capa: `logo_cruz-azul.png`
+- Logo capa: `logo_exemplo.png`
 - Parser assume layout **MENSAL- RELATÓRIO GERAL** (JSON layout-id 12)
 
 ### Cache V1 (reutilizar conceito, separar por tenant)
@@ -78,27 +78,26 @@
 Arquivo ou registro por cliente, exemplo:
 
 ```yaml
-# configs/clients/cruz_azul.yaml  (ilustrativo)
-slug: cruz_azul
-display_name: Cruz Azul
+# configs/clients/cliente.yaml  (ilustrativo)
+slug: cliente
+display_name: Cliente
 faz:
-  adom: CRUZ_AZUL
+  adom: ADOM
   report_schedule_mensal: "MENSAL- RELATÓRIO GERAL"
   report_schedule_wan: "SEMANAL- RELATÓRIO TRÁFEGO WAN"
   time_period: last-30-days
 hierarchy:
-  device_pattern: "^(?:(hafw\\d+)|fw)-(?P<region>[a-z]+)-cruz-azul-(?P<site>.+)$"
+  device_pattern: "^(?:(hafw\\d+)|fw)-(?P<region>[a-z0-9]+)-(?P<site>.+)$"
   region_labels:
-    spo: "Unidade São Paulo (SPO)"
-    cas: "CAS - Campinas"
-    # ...
+    norte: "Norte"
+    sul: "Sul"
 pdf:
-  cover_logo: assets/clients/cruz_azul/logo.png
-  cover_header: assets/clients/cruz_azul/cabecalho_capa.png
+  cover_logo: assets/clients/cliente/logo.png
+  cover_header: assets/img/cabecalho_capa.png
   internal_header: assets/img/cabecalho-interno.png
   header_logo: assets/img/logo-horizontal-gray.svg
 output:
-  subdir: cruz_azul   # output/cruz_azul/...
+  subdir: cliente   # output/cliente/...
 ```
 
 Credenciais FAZ podem ser **globais** (um usuário automação) ou **por cliente** — decisão de segurança na implementação.
@@ -158,7 +157,7 @@ Funções em `mensal_cache.py` e `config.py` devem receber `base_dir` ou `client
 2. Introduzir `ClientConfig` + loader YAML/DB.  
 3. Parametrizar `hierarchy.py` (pattern + labels).  
 4. Criar camada API fina sobre `MensalReportPipeline`.  
-5. Frontend consome API; CLI permanece para ops/debug (`--client cruz_azul`).  
+5. Frontend consome API; CLI permanece para ops/debug (`--client cliente`).  
 
 ---
 

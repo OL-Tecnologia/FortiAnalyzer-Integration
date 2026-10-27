@@ -101,6 +101,7 @@ function validateSchedule(schedule) {
 }
 
 let editingSlug = null;
+let adminSetup = false;
 
 function showMsg(text, ok) {
   const box = el("adminMsg");
@@ -556,14 +557,28 @@ async function removeClient(slug, displayName) {
   }
 }
 
+function showSetupMode(enabled) {
+  adminSetup = enabled;
+  const lead = el("adminLoginLead");
+  if (lead) {
+    lead.textContent = enabled
+      ? "Crie a senha do Super Admin. Ela vale só para esta instalação."
+      : "Acesso Super Admin para cadastrar clientes (FAZ, ADOM, branding, e-mail automático).";
+  }
+  el("adminPasswordLabel").textContent = enabled ? "Crie a senha" : "Senha Super Admin";
+  el("adminPasswordConfirmRow")?.classList.toggle("hidden", !enabled);
+  el("adminSetupHint")?.classList.toggle("hidden", !enabled);
+  const password = el("adminPassword");
+  if (password) password.autocomplete = enabled ? "new-password" : "current-password";
+  const confirm = el("adminPasswordConfirm");
+  if (confirm) confirm.required = enabled;
+  el("btnAdminLogin").textContent = enabled ? "Criar senha e entrar" : "Entrar";
+}
+
 async function ensureAdmin() {
   const res = await fetch(apiUrl("/api/admin/me"), API);
   const me = await res.json();
-  if (!me.configured) {
-    showLoginError(
-      "Defina PORTAL_ADMIN_PASSWORD no arquivo .env e reinicie o serviço."
-    );
-  }
+  showSetupMode(!me.configured);
   if (me.authenticated) {
     el("adminLoginCard").classList.add("hidden");
     el("adminPanel").classList.remove("hidden");
@@ -581,11 +596,16 @@ async function init() {
   el("adminLoginForm")?.addEventListener("submit", async (ev) => {
     ev.preventDefault();
     el("adminLoginError")?.classList.add("hidden");
-    const res = await fetch(apiUrl("/api/admin/login"), {
+    const password = el("adminPassword").value;
+    const path = adminSetup ? "/api/admin/setup" : "/api/admin/login";
+    const payload = adminSetup
+      ? { password, password_confirm: el("adminPasswordConfirm").value }
+      : { password };
+    const res = await fetch(apiUrl(path), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ password: el("adminPassword").value }),
+      body: JSON.stringify(payload),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -631,6 +651,69 @@ async function init() {
   ["cfgLogoWidth", "cfgLogoAlign", "cfgLogoOffsetX", "cfgLogoOffsetY"].forEach((id) => {
     el(id)?.addEventListener("input", () => refreshCoverPreview());
     el(id)?.addEventListener("change", () => refreshCoverPreview());
+  });
+
+  function showEmailTest(text, ok, fix) {
+    const box = el("emailTestMsg");
+    const fixBox = el("emailTestFix");
+    if (box) {
+      box.textContent = text || "";
+      box.classList.remove("hidden", "is-ok", "is-error");
+      box.classList.add(ok ? "is-ok" : "is-error");
+    }
+    if (!fixBox) return;
+    if (fix) {
+      fixBox.textContent = `Como corrigir: ${fix}`;
+      fixBox.classList.remove("hidden");
+    } else {
+      fixBox.textContent = "";
+      fixBox.classList.add("hidden");
+    }
+  }
+
+  el("btnTestEmail")?.addEventListener("click", async () => {
+    const btn = el("btnTestEmail");
+    if (btn) btn.disabled = true;
+    showEmailTest("Enviando e-mail de teste…", true, "");
+    try {
+      const res = await fetch(apiUrl("/api/admin/email-test"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          smtp_from: el("cfgSmtpFrom").value.trim(),
+          smtp_to: el("cfgSmtpTo").value.trim(),
+          smtp_cc: el("cfgSmtpCc").value.trim(),
+        }),
+      });
+      if (res.status === 401) {
+        showEmailTest("A sessão de administrador expirou.", false, "Entre de novo na Administração e teste outra vez.");
+        return;
+      }
+      if (res.status === 404) {
+        showEmailTest(
+          "Este programa ainda não tem o teste de e-mail.",
+          false,
+          "Feche o programa e abra a versão atualizada do FortiAnalyzer Reports."
+        );
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) {
+        const problem = data.problem || data.message || data.detail || "O e-mail não foi enviado.";
+        showEmailTest(typeof problem === "string" ? problem : "O e-mail não foi enviado.", false, data.fix || "");
+        return;
+      }
+      showEmailTest(data.message || "E-mail de teste enviado.", true, "");
+    } catch (err) {
+      showEmailTest(
+        err.message || "Não foi possível falar com o programa.",
+        false,
+        "Confira se o FortiAnalyzer Reports está aberto e tente de novo."
+      );
+    } finally {
+      if (btn) btn.disabled = false;
+    }
   });
 
   el("btnTestConn")?.addEventListener("click", async () => {

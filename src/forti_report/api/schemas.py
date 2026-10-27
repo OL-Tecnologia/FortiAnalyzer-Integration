@@ -24,6 +24,11 @@ class AdminLoginRequest(BaseModel):
     password: str = Field(..., min_length=1, max_length=256)
 
 
+class AdminSetupRequest(BaseModel):
+    password: str = Field(..., min_length=1, max_length=256)
+    password_confirm: str = Field(..., min_length=1, max_length=256)
+
+
 class AdminMeResponse(BaseModel):
     authenticated: bool
     configured: bool
@@ -162,3 +167,18 @@ class AutomationSettingsUpdate(BaseModel):
     smtp_cc: str | None = Field(None, max_length=512)
     smtp_alert_to: str | None = Field(None, max_length=512)
     schedules: dict[str, Any] | None = None
+
+
+class EmailTestRequest(BaseModel):
+    """Endereços da tela. Vazio significa o valor que está no campo, não o que está salvo."""
+
+    smtp_from: str | None = Field(None, max_length=255)
+    smtp_to: str | None = Field(None, max_length=512)
+    smtp_cc: str | None = Field(None, max_length=512)
+
+
+class EmailTestResponse(BaseModel):
+    ok: bool
+    message: str
+    problem: str = ""
+    fix: str = ""

@@ -3,11 +3,11 @@ from forti_report.services.harvest import classify_report
 
 def test_diario_nao_cai_no_mensal_de_configuracoes():
     daily = {
-        "name": "RELATÓRIO DIÁRIO DE CONFIGURAÇÕES-MLGOMES_FG4H0E[root]-2026-10-12-0800-0300_1",
+        "name": "RELATÓRIO DIÁRIO DE CONFIGURAÇÕES-FW_MATRIZ_01[root]-2026-10-12-0800-0300_1",
         "title": "RELATÓRIO DIÁRIO DE CONFIGURAÇÕES",
     }
     monthly = {
-        "name": "MENSAL-RELATÓRIO MENSAL DE CONFIGURAÇÕES-MLGOMES_FG4H0E[root]-2026-10-09-0800-0300_2",
+        "name": "MENSAL-RELATÓRIO MENSAL DE CONFIGURAÇÕES-FW_MATRIZ_01[root]-2026-10-09-0800-0300_2",
         "title": "MENSAL-RELATÓRIO MENSAL DE CONFIGURAÇÕES",
     }
     assert classify_report(daily).cycle == "diario"
@@ -17,7 +17,7 @@ def test_diario_nao_cai_no_mensal_de_configuracoes():
 
 def test_wan_com_espaco_entra_no_prefixo_certo():
     report = {
-        "name": "MENSAL- RELATÓRIO TRÁFEGO WAN-MLGOMES_FG4H0E[root]-2026-10-09-0800-0300_3",
+        "name": "MENSAL- RELATÓRIO TRÁFEGO WAN-FW_MATRIZ_01[root]-2026-10-09-0800-0300_3",
         "title": "MENSAL- RELATÓRIO TRÁFEGO WAN",
     }
     layout = classify_report(report)

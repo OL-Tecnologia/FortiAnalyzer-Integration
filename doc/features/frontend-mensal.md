@@ -1,7 +1,7 @@
-# Feature — Frontend web MENSAL (CRUZ_AZUL)
+# Feature — Frontend web MENSAL (ADOM_EXEMPLO)
 
 **Status:** ✅ V1  
-**Cliente:** CRUZ_AZUL (único; multi-cliente na V2)
+**Cliente:** ADOM_EXEMPLO (único; multi-cliente na V2)
 
 ## Objetivo
 
@@ -27,7 +27,7 @@ Alternativa:
 
 | Elemento | Descrição |
 |----------|-----------|
-| Badge ADOM | Lê `/api/client` (CRUZ_AZUL + schedule) |
+| Badge ADOM | Lê `/api/client` (ADOM_EXEMPLO + schedule) |
 | Gerar relatório | Inicia job assíncrono |
 | Barra de progresso | Percentual + mensagem da etapa atual |
 | Log de etapas | Histórico (FAZ, cada dispositivo, PDF, cache) |

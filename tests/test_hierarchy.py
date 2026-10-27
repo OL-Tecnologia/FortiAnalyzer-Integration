@@ -7,32 +7,32 @@ from forti_report.data.hierarchy import (
 
 
 def test_parse_device_name():
-    assert parse_device_name("fw-spo-cruz-azul-centro") == ("spo", "centro", "fw")
-    assert parse_device_name("hafw1-spo-cruz-azul-matriz") == ("spo", "matriz", "hafw")
-    assert parse_device_name("fw-sne-cruz-azul-santo-andre") == ("sne", "santo-andre", "fw")
+    assert parse_device_name("fw-norte-matriz") == ("norte", "matriz", "fw")
+    assert parse_device_name("hafw1-norte-matriz") == ("norte", "matriz", "hafw")
+    assert parse_device_name("fw-leste-filial-01") == ("leste", "filial-01", "fw")
 
 
 def test_build_regional_hierarchy():
     devices = [
-        {"name": "fw-spo-cruz-azul-centro", "ip": "1.1.1.1", "dev_status": 1, "platform_str": "FG-50G"},
-        {"name": "fw-spo-cruz-azul-penha", "ip": "2.2.2.2", "dev_status": 1, "platform_str": "FG-50G"},
-        {"name": "fw-cas-cruz-azul-colegio", "ip": "3.3.3.3", "dev_status": 0, "platform_str": "FG-50G"},
+        {"name": "fw-norte-matriz", "ip": "1.1.1.1", "dev_status": 1, "platform_str": "FG-50G"},
+        {"name": "fw-norte-anexo", "ip": "2.2.2.2", "dev_status": 1, "platform_str": "FG-50G"},
+        {"name": "fw-sul-filial", "ip": "3.3.3.3", "dev_status": 0, "platform_str": "FG-50G"},
     ]
     units = build_regional_hierarchy(devices)
     assert len(units) == 2
-    spo = next(u for u in units if u.code == "spo")
-    assert spo.antenna_count == 2
-    assert spo.display_name == region_display_name("spo")
-    assert spo.antennas[0].display_name == site_display_name("centro")
+    norte = next(u for u in units if u.code == "norte")
+    assert norte.antenna_count == 2
+    assert norte.display_name == region_display_name("norte")
+    assert norte.antennas[0].display_name == site_display_name("anexo")
 
 
 def test_hostname_fora_do_padrao_entra_na_hierarquia():
     devices = [
-        {"name": "MLGOMES_FG4H0E", "ip": "10.0.0.1", "dev_status": 1, "platform_str": "FG-4H"},
-        {"name": "fw-spo-cruz-azul-centro", "ip": "1.1.1.1", "dev_status": 1, "platform_str": "FG-50G"},
+        {"name": "FW_MATRIZ_01", "ip": "10.0.0.1", "dev_status": 1, "platform_str": "FG-4H"},
+        {"name": "fw-norte-matriz", "ip": "1.1.1.1", "dev_status": 1, "platform_str": "FG-50G"},
     ]
     units = build_regional_hierarchy(devices)
     names = {ant.device_name for unit in units for ant in unit.antennas}
-    assert names == {"MLGOMES_FG4H0E", "fw-spo-cruz-azul-centro"}
-    literal = next(unit for unit in units if unit.code == "mlgomes_fg4h0e")
-    assert literal.display_name == "MLGOMES_FG4H0E"
+    assert names == {"FW_MATRIZ_01", "fw-norte-matriz"}
+    literal = next(unit for unit in units if unit.code == "fw_matriz_01")
+    assert literal.display_name == "FW_MATRIZ_01"

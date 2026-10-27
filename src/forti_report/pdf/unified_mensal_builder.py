@@ -103,7 +103,7 @@ class UnifiedMensalPdfBuilder:
         regional_units: list[RegionalUnit],
         output_path: Path,
         *,
-        adom: str = "CRUZ_AZUL",
+        adom: str = "",
         on_progress: Callable[[int, str], None] | None = None,
     ) -> Path:
         output_path = Path(output_path)

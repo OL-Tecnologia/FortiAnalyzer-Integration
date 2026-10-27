@@ -24,6 +24,6 @@ Set-Location $ProjectRoot
 $args = @("-m", "forti_report.cli", "run-scheduled-mensal")
 if ($Force) { $args += "--force" }
 
-Write-Host "Rotina agendada MENSAL (Cruz Azul)..." -ForegroundColor Cyan
+Write-Host "Rotina agendada MENSAL (Cliente)..." -ForegroundColor Cyan
 & $venvPython @args
 exit $LASTEXITCODE

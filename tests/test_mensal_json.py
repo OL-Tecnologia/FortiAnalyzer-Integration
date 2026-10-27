@@ -10,7 +10,7 @@ def test_parse_mensal_json_centro_sample():
     if not SAMPLE.is_file():
         return
     raw = SAMPLE.read_bytes()
-    report = parse_mensal_json(raw, device_name="fw-spo-cruz-azul-centro")
+    report = parse_mensal_json(raw, device_name="fw-norte-matriz")
     assert report.has_content
     assert report.summary.allowed_requests
     assert len(report.top_users_allowed) == 10

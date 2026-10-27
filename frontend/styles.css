@@ -506,6 +506,13 @@ body.modal-open {
   color: #f87171;
 }
 
+.email-test-fix {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--text);
+}
+
 .btn-download {
   background: var(--ok);
   color: #fff;

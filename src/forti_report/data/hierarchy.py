@@ -8,19 +8,12 @@ from dataclasses import dataclass, field
 from forti_report.data.models import UnitReport
 
 _DEVICE_PATTERN = re.compile(
-    r"^(?:(?P<prefix>hafw\d+)|fw)-(?P<region>[a-z]+)-cruz-azul-(?P<site>.+)$",
+    r"^(?:(?P<prefix>hafw\d+)|fw)-(?P<region>[a-z0-9]+)-(?P<site>.+)$",
     re.IGNORECASE,
 )
 
-# Códigos regionais extraídos do naming convention fw-{code}-cruz-azul-{site}
-REGION_LABELS: dict[str, str] = {
-    "cas": "CAS - Campinas",
-    "grs": "Unidade Guarulhos (GRS)",
-    "oco": "Unidade Osasco (OCO)",
-    "sne": "Unidade Santo André (SNE)",
-    "spo": "Unidade São Paulo (SPO)",
-    "sve": "Unidade São Vicente (SVE)",
-}
+# Rótulos ficam no cadastro do tenant. O padrão não traz nome de cliente.
+REGION_LABELS: dict[str, str] = {}
 
 
 @dataclass
@@ -60,7 +53,7 @@ def parse_device_name(
 ) -> tuple[str, str, str] | None:
     """
     Retorna (region_code, site_slug, device_type) ou None se não reconhecer.
-    Ex.: fw-spo-cruz-azul-centro → ('spo', 'centro', 'fw')
+    Ex.: fw-norte-matriz → ('norte', 'matriz', 'fw')
     """
     compiled = _DEVICE_PATTERN
     if pattern:
@@ -78,19 +71,7 @@ def parse_device_name(
     return region.lower(), site.lower(), device_type
 
 
-SITE_LABELS: dict[str, str] = {
-    "ambulatorio": "Ambulatório",
-    "colegio": "Colégio",
-    "guarulhos": "Guarulhos",
-    "osasco": "Osasco",
-    "santo-andre": "Santo André",
-    "centro": "Centro",
-    "itaquera": "Itaquera",
-    "matriz": "Matriz",
-    "penha": "Penha",
-    "stamaro": "Santo Amaro",
-    "sao-vicente": "São Vicente",
-}
+SITE_LABELS: dict[str, str] = {}
 
 
 def site_display_name(site_slug: str) -> str:

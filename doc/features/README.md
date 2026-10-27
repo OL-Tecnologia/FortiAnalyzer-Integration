@@ -22,9 +22,9 @@ Catálogo das capacidades atuais do **fortiAnalyzer**. Detalhes em documentos fi
 | Download relatório (JSON/XML/PDF) | ✅ V1 | `faz/reports.py` |
 | Filtro por schedule MENSAL | ✅ V1 | `FAZ_REPORT_SCHEDULE` |
 | ADOM configurável por `.env` | ✅ V1 | `FAZ_ADOM` |
-| Frontend web MENSAL (CRUZ_AZUL) | ✅ V1 | [frontend-mensal-cruz-azul.md](frontend-mensal-cruz-azul.md) |
+| Frontend web MENSAL (ADOM_EXEMPLO) | ✅ V1 | [frontend-mensal.md](frontend-mensal.md) |
 | Login FAZ (tela + sessão, sem `.env`) | ✅ V1.1 | [login-faz-sessao.md](login-faz-sessao.md) |
-| Multi-tenant (sempre N tenants; SDE=1, OL=N; Super Admin + e-mail por client) | 🚧 Parcial | [multi-tenant-clientes-faz.md](multi-tenant-clientes-faz.md) — `PORTAL_ADMIN_PASSWORD` + `/admin.html` |
+| Multi-tenant (N tenants; Super Admin + e-mail por client) | 🚧 Parcial | [multi-tenant-clientes-faz.md](multi-tenant-clientes-faz.md) — `PORTAL_ADMIN_PASSWORD` + `/admin.html` |
 | Multi-ADOM / portal N clientes (rascunho V2) | 📋 V2 | [v2-multi-cliente-api-frontend.md](v2-multi-cliente-api-frontend.md) — ver spec canônica acima |
 
 ---
@@ -33,7 +33,7 @@ Catálogo das capacidades atuais do **fortiAnalyzer**. Detalhes em documentos fi
 
 | Feature | Status | Documento / código |
 |---------|--------|-------------------|
-| Padrão de hostname Cruz Azul (`fw-{reg}-cruz-azul-{site}`) | ✅ V1 | `data/hierarchy.py` |
+| Padrão de hostname Cliente (`fw-{reg}-exemplo-{site}`) | ✅ V1 | `data/hierarchy.py` |
 | 6 unidades regionais, 11 dispositivos | ✅ V1 | `REGION_LABELS`, README raiz |
 | Parser JSON MENSAL GERAL (layout FAZ) | ✅ V1 | `data/parsers/mensal_json.py` |
 | Parser PDF MENSAL (fallback) | ✅ V1 | `data/parsers/mensal_pdf.py` |
@@ -109,12 +109,13 @@ Spec do ciclo acordado. O V1 continua só com o mensal de endpoint.
 | Hierarquia só de cache (sem FAZ) se metas válidas | ✅ V1 | `mensal_pipeline._fetch_hierarchy_from_cache` |
 | Script de profiling | ✅ V1 | `scripts/profile_pdf.py` |
 | Agendamento mensal + e-mail automático | ✅ V1 | [agendamento-email-mensal.md](agendamento-email-mensal.md) |
+| Segredos por cliente e caixa de envio no cadastro | 📋 Planejado | [segredos-por-cliente-e-email.md](segredos-por-cliente-e-email.md) |
 
 ---
 
 ## Multi-tenant / V2 — não implementado
 
-Spec canônica — **produto já multi-tenant** (SDE cadastra 1 tenant; OL atualiza para N; Super Admin; e-mail por tenant):
+Spec canônica — **produto já multi-tenant** (uma instância pode ter 1 ou N tenants; Super Admin; e-mail por tenant):
 
 **[multi-tenant-clientes-faz.md](multi-tenant-clientes-faz.md)**
 

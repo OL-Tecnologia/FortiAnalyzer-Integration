@@ -177,7 +177,7 @@ $WshShell = New-Object -ComObject WScript.Shell
 $sc = $WshShell.CreateShortcut($lnk)
 $sc.TargetPath = '{bat}'
 $sc.WorkingDirectory = '{PROJECT_ROOT}'
-$sc.Description = 'Relatorio MENSAL FortiAnalyzer - Cruz Azul'
+$sc.Description = 'Relatorio mensal FortiAnalyzer'
 $sc.Save()
 """
     subprocess.run(
@@ -231,7 +231,7 @@ def run_install(*, force: bool = False, force_env: bool = False, shortcut: bool 
             (PROJECT_ROOT / sub).mkdir(parents=True, exist_ok=True)
         _log("Pastas output/ prontas")
 
-        _set(percent=68, step="config", message="Aplicando configuração Cruz Azul...")
+        _set(percent=68, step="config", message="Aplicando configuração inicial...")
         config_env = config_env_path()
         env_file = PROJECT_ROOT / ".env"
         if config_env.is_file() and (force_env or not env_file.is_file()):

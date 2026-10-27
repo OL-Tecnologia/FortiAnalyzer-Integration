@@ -7,32 +7,32 @@ from forti_report.data.units import (
 
 
 def test_report_device_text_from_dict():
-    report = {"device": {"count": 1, "data": "fw-spo-cruz-azul-centro[root]"}}
-    assert report_device_text(report) == "fw-spo-cruz-azul-centro[root]"
+    report = {"device": {"count": 1, "data": "fw-norte-matriz[root]"}}
+    assert report_device_text(report) == "fw-norte-matriz[root]"
 
 
 def test_report_matches_device():
     report = {
-        "name": "MENSAL- RELATÓRIO GERAL-fw-spo-cruz-azul-centro[root]-2026-05-29",
+        "name": "MENSAL- RELATÓRIO GERAL-fw-norte-matriz[root]-2026-05-29",
         "title": "MENSAL- RELATÓRIO GERAL",
-        "device": {"data": "fw-spo-cruz-azul-centro[root]"},
+        "device": {"data": "fw-norte-matriz[root]"},
     }
-    assert report_matches_device(report, "fw-spo-cruz-azul-centro")
+    assert report_matches_device(report, "fw-norte-matriz")
     assert not report_matches_device(report, "fw-other")
 
 
 def test_extract_device_ignores_hostname_shape():
     cruz = (
-        "MENSAL-RELATÓRIO DE ENDPOINT-fw-cas-cruz-azul-colegio[root]-2026-10-09-0804-0300_1976"
+        "MENSAL-RELATÓRIO DE ENDPOINT-fw-sul-anexo[root]-2026-10-09-0804-0300_1976"
     )
-    gomes = "MENSAL-RELATÓRIO DE ENDPOINT-MLGOMES_FG4H0E[root]-2026-10-09-0803-0300_6169"
-    assert extract_device_from_report_name(cruz) == "fw-cas-cruz-azul-colegio"
-    assert extract_device_from_report_name(gomes) == "MLGOMES_FG4H0E"
+    gomes = "MENSAL-RELATÓRIO DE ENDPOINT-FW_MATRIZ_01[root]-2026-10-09-0803-0300_6169"
+    assert extract_device_from_report_name(cruz) == "fw-sul-anexo"
+    assert extract_device_from_report_name(gomes) == "FW_MATRIZ_01"
 
 
 def test_schedule_uses_endpoint_prefix_not_daily_report():
     endpoint = {
-        "name": "MENSAL-RELATÓRIO DE ENDPOINT-MLGOMES_FG4H0E[root]-2026-10-09-0803-0300_6169",
+        "name": "MENSAL-RELATÓRIO DE ENDPOINT-FW_MATRIZ_01[root]-2026-10-09-0803-0300_6169",
         "title": "MENSAL-RELATÓRIO DE ENDPOINT",
     }
     daily = {

@@ -6,4 +6,4 @@ Cadastre clientes pelo Super Admin em `/admin.html` (host FAZ, ADOM, branding, e
 
 - Arquivos: `{slug}.yaml`
 - Senhas de automação: `.secrets/` (não versionar)
-- Exemplo ilustrativo: `sde.yaml.example`
+- Exemplo ilustrativo: `cliente.yaml.example`

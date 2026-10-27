@@ -686,6 +686,70 @@ const configForm = el("configForm");
 if (configForm) {
   configForm.addEventListener("submit", saveAutomationConfig);
 }
+function showEmailTest(text, ok, fix) {
+  const box = el("emailTestMsg");
+  const fixBox = el("emailTestFix");
+  if (box) {
+    box.textContent = text || "";
+    box.classList.remove("hidden", "is-ok", "is-error");
+    box.classList.add(ok ? "is-ok" : "is-error");
+  }
+  if (!fixBox) return;
+  if (fix) {
+    fixBox.textContent = `Como corrigir: ${fix}`;
+    fixBox.classList.remove("hidden");
+  } else {
+    fixBox.textContent = "";
+    fixBox.classList.add("hidden");
+  }
+}
+
+async function testEmailSend() {
+  const btn = el("btnTestEmail");
+  if (btn) btn.disabled = true;
+  showEmailTest("Enviando e-mail de teste…", true, "");
+  try {
+    const res = await fetch(apiUrl("/api/settings/email-test"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        smtp_from: el("cfgSmtpFrom").value.trim(),
+        smtp_to: el("cfgSmtpTo").value.trim(),
+        smtp_cc: el("cfgSmtpCc").value.trim(),
+      }),
+    });
+    if (res.status === 401) {
+      window.location.href = "/login.html";
+      return;
+    }
+    if (res.status === 404) {
+      showEmailTest(
+        "Este programa ainda não tem o teste de e-mail.",
+        false,
+        "Feche o programa e abra a versão atualizada do FortiAnalyzer Reports."
+      );
+      return;
+    }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.ok === false) {
+      const problem = data.problem || data.message || data.detail || "O e-mail não foi enviado.";
+      showEmailTest(typeof problem === "string" ? problem : "O e-mail não foi enviado.", false, data.fix || "");
+      return;
+    }
+    showEmailTest(data.message || "E-mail de teste enviado.", true, "");
+  } catch (err) {
+    showEmailTest(
+      err.message || "Não foi possível falar com o programa.",
+      false,
+      "Confira se o FortiAnalyzer Reports está aberto e tente de novo."
+    );
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+el("btnTestEmail")?.addEventListener("click", testEmailSend);
 el("cfgRetryEnabled")?.addEventListener("change", syncRetryOptions);
 el("btnOpenConfig")?.addEventListener("click", openConfigModal);
 el("btnCloseConfig")?.addEventListener("click", closeConfigModal);

@@ -224,7 +224,7 @@ class ReportPipeline:
         paths = self.generate_all_pdfs(result)
         return result, paths
 
-    def run_demo(self, device_name: str = "fw-spo-cruz-azul-centro") -> Path:
+    def run_demo(self, device_name: str = "fw-norte-matriz") -> Path:
         """PDF de demonstração com dados fictícios (sem FAZ)."""
         from forti_report.data.models import SectionData, SiteRankingItem
 
@@ -247,7 +247,7 @@ class ReportPipeline:
                 )
             ],
         )
-        doc = ReportDocument(title="Relatório Cruz Azul", units=[unit])
+        doc = ReportDocument(title="Relatório de demonstração", units=[unit])
         paths = PdfReportBuilder(self.settings, self.registry).build_document(doc)
         return paths[0]
 

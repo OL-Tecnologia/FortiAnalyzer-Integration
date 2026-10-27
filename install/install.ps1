@@ -22,7 +22,7 @@ function Write-Warn($msg) { if (-not $Silent) { Write-Host "    AVISO: $msg" -Fo
 if (-not $Silent) {
     Write-Host ""
     Write-Host "  FortiAnalyzer Reports - Instalador" -ForegroundColor White
-    Write-Host "  Cruz Azul | OL Tecnologia" -ForegroundColor DarkGray
+    Write-Host "  OL Tecnologia" -ForegroundColor DarkGray
     Write-Host ""
 }
 
@@ -106,7 +106,7 @@ $envFile = Join-Path $ProjectRoot ".env"
 if (Test-Path $configEnv) {
     if (-not (Test-Path $envFile) -or $ForceEnv) {
         Copy-Item $configEnv $envFile -Force
-        Write-Ok "Configuracao Cruz Azul aplicada (.env)"
+        Write-Ok "Configuracao inicial aplicada (.env)"
     } else {
         Write-Ok ".env mantido (ja existia)"
     }
@@ -131,7 +131,7 @@ if ($CreateShortcut) {
     $sc = $WshShell.CreateShortcut($lnk)
     $sc.TargetPath = $bat
     $sc.WorkingDirectory = $ProjectRoot
-    $sc.Description = "Relatorio MENSAL FortiAnalyzer - Cruz Azul"
+    $sc.Description = "Relatorio mensal FortiAnalyzer"
     $sc.Save()
     Write-Ok "Atalho criado"
 }

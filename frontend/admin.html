@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Administração — FortiAnalyzer</title>
-  <link rel="stylesheet" href="styles.css?v=8" />
+  <link rel="stylesheet" href="styles.css?v=10" />
 </head>
 <body>
   <div class="page page-wide">
@@ -20,16 +20,22 @@
     </header>
 
     <section class="card" id="adminLoginCard">
-      <p class="lead">
+      <p class="lead" id="adminLoginLead">
         Acesso Super Admin para cadastrar clientes (FAZ, ADOM, branding, e-mail automático).
-        Senha padrão da instalação limpa: <code>AltereEstaSenha</code>
-        (arquivo <code>.env</code> ao lado do .exe → <code>PORTAL_ADMIN_PASSWORD</code>).
       </p>
       <form id="adminLoginForm" class="login-form" autocomplete="off">
         <label class="field">
-          <span>Senha Super Admin</span>
+          <span id="adminPasswordLabel">Senha Super Admin</span>
           <input type="password" id="adminPassword" required autocomplete="current-password" />
         </label>
+        <label class="field hidden" id="adminPasswordConfirmRow">
+          <span>Confirme a senha</span>
+          <input type="password" id="adminPasswordConfirm" autocomplete="new-password" />
+        </label>
+        <p class="field-hint hidden" id="adminSetupHint">
+          Use pelo menos 8 caracteres. A senha fica gravada neste computador.
+          Se esquecer, não há como entrar de novo.
+        </p>
         <button type="submit" class="btn btn-primary btn-block" id="btnAdminLogin">Entrar</button>
       </form>
       <p class="error hidden" id="adminLoginError"></p>
@@ -67,7 +73,7 @@
           <div class="config-row">
             <label class="field">
               Host / IP
-              <input type="text" id="cfgFazHost" required placeholder="10.224.17.20" />
+              <input type="text" id="cfgFazHost" required placeholder="192.0.2.10" />
             </label>
             <label class="field">
               Porta
@@ -75,7 +81,7 @@
             </label>
           </div>
           <p class="field-hint">
-            Use só o IP/hostname (ex.: <code>10.224.17.20</code>). Se colar URL com
+            Use só o IP/hostname (ex.: <code>192.0.2.10</code>). Se colar URL com
             <code>https://</code>, o sistema remove o protocolo automaticamente.
           </p>
           <label class="field">
@@ -171,11 +177,16 @@
 
         <fieldset class="config-group">
           <legend>E-mail</legend>
-          <label class="field">From<input type="email" id="cfgSmtpFrom" /></label>
-          <label class="field">To<input type="text" id="cfgSmtpTo" /></label>
-          <label class="field">Cc<input type="text" id="cfgSmtpCc" /></label>
-          <label class="field">Alerta<input type="text" id="cfgSmtpAlert" /></label>
+          <label class="field">Remetente (From)<input type="email" id="cfgSmtpFrom" /></label>
+          <label class="field">Destinatário (To)<input type="text" id="cfgSmtpTo" /></label>
+          <label class="field">Cópia (Cc)<input type="text" id="cfgSmtpCc" /></label>
+          <label class="field">Alerta de falha<input type="text" id="cfgSmtpAlert" /></label>
           <label class="field">Prefixo do assunto<input type="text" id="cfgEmailPrefix" /></label>
+          <button type="button" class="btn btn-secondary" id="btnTestEmail">
+            Testar envio de e-mail
+          </button>
+          <p class="config-msg hidden" id="emailTestMsg"></p>
+          <p class="email-test-fix hidden" id="emailTestFix"></p>
         </fieldset>
 
         <fieldset class="config-group">
@@ -339,6 +350,6 @@
       </form>
     </section>
   </div>
-  <script src="admin.js?v=8"></script>
+  <script src="admin.js?v=10"></script>
 </body>
 </html>

@@ -38,7 +38,7 @@ Corpo fixo em `services/email_delivery.py`.
 | Cenário | Host | Porta | Auth |
 |---------|------|-------|------|
 | **Office 365 (recomendado)** | `smtp.office365.com` | 587 + STARTTLS | Sim (mailbox de serviço + senha) |
-| **Relay interno OneLinea** | `mail.onelinea.com.br` | 25 | Não (só na rede interna/VPN) |
+| **Relay interno** | host do relay da rede | 25 | Não (só na rede interna/VPN) |
 | **Errado** | `*.mail.protection.outlook.com` | — | MX de **entrada**, não envia como mailbox |
 
 **Importante:** envio via SMTP relay **não aparece** em "Itens enviados" do Outlook da mailbox de serviço. Só mensagens enviadas pelo Outlook/Webmail aparecem lá.

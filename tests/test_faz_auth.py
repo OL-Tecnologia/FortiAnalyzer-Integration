@@ -16,7 +16,7 @@ def test_session_store_expires():
         faz_user="u",
         faz_password="p",
         faz_rpc_session="rpc-1",
-        adom="CRUZ_AZUL",
+        adom="ADOM_EXEMPLO",
         ttl_seconds=1,
     )
     assert store.get(rec.session_id) is not None
@@ -30,7 +30,7 @@ def test_settings_for_session_injects_credentials():
         faz_user="operator",
         faz_password="secret",
         faz_rpc_session="rpc-1",
-        adom="CRUZ_AZUL",
+        adom="ADOM_EXEMPLO",
         ttl_seconds=3600,
     )
     from forti_report.config import get_settings
@@ -50,10 +50,11 @@ def test_authenticate_faz_success(mock_client_cls):
 
     from forti_report.config import get_settings
 
-    session = authenticate_faz("user1", "pass1", get_settings())
+    settings = get_settings()
+    session = authenticate_faz("user1", "pass1", settings)
     assert session.faz_user == "user1"
     assert session.faz_rpc_session == "faz-session-abc"
-    assert session.adom == "CRUZ_AZUL"
+    assert session.adom == settings.faz_adom
 
 
 @patch("forti_report.faz.auth.FortiAnalyzerClient")

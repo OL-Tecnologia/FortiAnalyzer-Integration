@@ -1,6 +1,6 @@
-# FortiAnalyzer → PDF (Cruz Azul)
+# FortiAnalyzer Reports
 
-Importação de relatórios do FortiAnalyzer (ADOM **CRUZ_AZUL**), gráficos com **Plotly** e PDF customizado (capa, sumário com links, seções, cabeçalho/rodapé).
+Importação de relatórios do FortiAnalyzer, gráficos com **Plotly** e PDF customizado (capa, sumário com links, seções, cabeçalho/rodapé).
 
 **Documentação completa:** pasta [doc/](doc/) (features V1, referências do projeto, planejamento V2 multi-cliente + frontend).
 
@@ -67,20 +67,16 @@ Coloque as imagens em `assets/`:
 
 | Termo | Exemplo | Descrição |
 |-------|---------|-----------|
-| **Unidade regional** | CAS - Campinas, SPO | Agrupamento por região (`fw-{região}-cruz-azul-{site}`) |
+| **Unidade regional** | código da regional | Agrupamento por região (`fw-{região}-{site}`) |
 | **Unidade** | Ambulatório, Colégio | Nome do site/local (coluna **Unidade** no PDF) |
-| **Dispositivo** | `fw-cas-cruz-azul-ambulatorio` | Hostname FortiGate no FAZ |
+| **Dispositivo** | `fw-sul-filial` | Hostname FortiGate no FAZ |
 
-Dispositivos seguem o padrão `fw-{região}-cruz-azul-{site}`:
+Dispositivos seguem o padrão `fw-{região}-{site}`:
 
 | Unidade regional | Unidades (sites) |
 |------------------|------------------|
-| **CAS - Campinas** | Ambulatório, Colégio |
-| **GRS** | Guarulhos |
-| **OCO** | Osasco |
-| **SNE** | Santo André |
-| **SPO** | Centro, Itaquera, Matriz (HA), Penha, Stamaro |
-| **SVE** | São Vicente |
+| **Norte** | Matriz, Anexo |
+| **Sul** | Filial |
 
 ```bash
 # Ver unidades regionais e dispositivos
@@ -90,25 +86,25 @@ python scripts/generate_report.py list-hierarchy
 python scripts/generate_report.py pull-hierarchy --metadata-only --days 60
 
 # PDF consolidado de uma unidade regional (sumário + seção por dispositivo)
-python scripts/generate_report.py generate-unit spo --metadata-only
+python scripts/generate_report.py generate-unit norte --metadata-only
 
 # PDF de todas as unidades regionais → output/unidades/
 python scripts/generate_report.py generate-all-units --metadata-only
 ```
 
-## Frontend web (CRUZ_AZUL)
+## Frontend web (ADOM)
 
 ```powershell
 .\.venv\Scripts\python.exe -m forti_report.api.app
 # http://localhost:8000
 ```
 
-Ver [doc/features/frontend-mensal-cruz-azul.md](doc/features/frontend-mensal-cruz-azul.md).
+Ver [doc/features/frontend-mensal.md](doc/features/frontend-mensal.md).
 
 ## Comandos (dispositivos individuais)
 
 ```bash
-# Listar todas as unidades (11 dispositivos no CRUZ_AZUL)
+# Listar todas as unidades (11 dispositivos no ADOM)
 python scripts/generate_report.py list-units
 
 # Importar metadados de todas (tid, período, relatório vinculado)
@@ -152,7 +148,7 @@ Hoje o pipeline MENSAL prioriza o **JSON** exportado pelo schedule **MENSAL- REL
 
 **O que fazer:**
 
-1. Baixar um XML real de um dispositivo Cruz Azul (ex.: `fw-cas-cruz-azul-ambulatorio`) via FAZ ou `pull-all --days 60`.
+1. Baixar um XML real de um dispositivo (ex.: `fw-sul-filial`) via FAZ ou `pull-all --days 60`.
 2. Mapear tags/XPath de cada chart do MENSAL (resumo web, usuários, categorias, SD-WAN, políticas).
 3. Expandir `parse_report_xml_to_sections()` para popular `SectionData` com as mesmas `key`s usadas em `unified_mensal_builder.py`.
 4. Adicionar teste em `tests/` com XML de amostra versionado (sem credenciais).
@@ -176,9 +172,9 @@ Hoje o pipeline MENSAL prioriza o **JSON** exportado pelo schedule **MENSAL- REL
 2. Registrar a chamada em `unified_mensal_builder.py` → `_mensal_sections`.
 3. Preencher dados no parser (`mensal_json.py` / `faz_xml.py`) se necessário.
 
-### 3. Lote — todos os dispositivos Cruz Azul
+### 3. Lote — todos os dispositivos do tenant
 
-Escopo: **11 dispositivos** no padrão `fw-*-cruz-azul-*` (e HA `hafw*-...`), agrupados em **6 unidades regionais**.
+Escopo: os dispositivos do tenant no padrão `fw-{região}-{site}` (e HA `hafw*-...`), agrupados nas unidades regionais cadastradas.
 
 | Ação | Comando |
 |------|---------|
@@ -188,7 +184,7 @@ Escopo: **11 dispositivos** no padrão `fw-*-cruz-azul-*` (e HA `hafw*-...`), ag
 | Forçar novo download do FAZ | acrescentar `--force-download` |
 | Só tabelas (rápido) | acrescentar `--no-charts` |
 
-A hierarquia em `src/forti_report/data/hierarchy.py` já filtra automaticamente hostnames `fw-{região}-cruz-azul-{site}`; dispositivos fora desse padrão não entram no PDF unificado.
+A hierarquia em `src/forti_report/data/hierarchy.py` já filtra automaticamente hostnames `fw-{região}-{site}`; dispositivos fora desse padrão não entram no PDF unificado.
 
 **Produção:** dia 5 às 06:00, e-mail do cliente e alerta interno — ver [doc/features/agendamento-email-mensal.md](doc/features/agendamento-email-mensal.md). Agende também o Task Scheduler como backup.
 
@@ -216,7 +212,7 @@ Detalhes: [doc/features/agendamento-email-mensal.md](doc/features/agendamento-em
 | Variável | Descrição |
 |----------|-----------|
 | `FAZ_HOST` / `FAZ_PORT` | Ex.: `172.16.8.39` / `8090` |
-| `FAZ_ADOM` | `CRUZ_AZUL` |
+| `FAZ_ADOM` | `ADOM` |
 | `FAZ_USER` / `FAZ_PASSWORD` | Conta de serviço da automação (configurável / segredo) |
 | `MENSAL_SCHEDULE_DAY` / `_HOUR` / `_MINUTE` | Dia e hora do envio (configurável) |
 | `SMTP_TO` / `SMTP_ALERT_TO` / `SMTP_FROM` | Destinatários (configurável) |
