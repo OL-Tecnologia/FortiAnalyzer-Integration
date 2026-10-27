@@ -17,7 +17,7 @@ from forti_report.pdf.sections.seguranca import build_seguranca_flowables
 
 def _sample_mensal() -> MensalGeralReport:
     return MensalGeralReport(
-        device_name="fw-cas-cruz-azul-ambulatorio",
+        device_name="fw-sul-filial",
         summary=WebUsageSummary(
             allowed_requests="9000",
             blocked_requests="1000",
@@ -120,12 +120,12 @@ def test_seguranca_empty_when_no_security_data():
 
 def test_global_resumo_executivo_flowables():
     devices = [
-        {"name": "fw-cas-cruz-azul-ambulatorio", "ip": "1.1.1.1", "dev_status": 1, "platform_str": "FG-50G"},
+        {"name": "fw-sul-filial", "ip": "1.1.1.1", "dev_status": 1, "platform_str": "FG-50G"},
     ]
     mensal = _sample_mensal()
     reports = {
-        "fw-cas-cruz-azul-ambulatorio": UnitReport(
-            device_name="fw-cas-cruz-azul-ambulatorio",
+        "fw-sul-filial": UnitReport(
+            device_name="fw-sul-filial",
             display_name="Ambulatório",
             faz_tid="123",
             mensal=mensal,

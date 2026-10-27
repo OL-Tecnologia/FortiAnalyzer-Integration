@@ -9,9 +9,9 @@ def parse_faz_endpoint(value: str) -> tuple[str, int | None, bool | None]:
 
     Retorna (host, porta_opcional, use_ssl_opcional).
     Exemplos:
-      - "10.224.17.20" → ("10.224.17.20", None, None)
-      - "https://10.224.17.20" → ("10.224.17.20", None, True)
-      - "https://10.224.17.20:8090/" → ("10.224.17.20", 8090, True)
+      - "192.0.2.10" → ("192.0.2.10", None, None)
+      - "https://192.0.2.10" → ("192.0.2.10", None, True)
+      - "https://192.0.2.10:8090/" → ("192.0.2.10", 8090, True)
     """
     text = (value or "").strip()
     if not text:

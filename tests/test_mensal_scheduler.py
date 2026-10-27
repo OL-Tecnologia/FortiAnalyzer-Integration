@@ -97,7 +97,7 @@ def test_idempotency_skips_success(tmp_path: Path):
 
 def test_run_scheduled_mensal_success(tmp_path: Path):
     settings = _settings(tmp_path)
-    pdf_path = tmp_path / "output" / "MENSAL_UNIFICADO_CRUZ_AZUL.pdf"
+    pdf_path = tmp_path / "output" / "MENSAL_UNIFICADO_ADOM_EXEMPLO.pdf"
     pdf_path.parent.mkdir(parents=True)
     pdf_path.write_bytes(b"%PDF-1.4 test")
 

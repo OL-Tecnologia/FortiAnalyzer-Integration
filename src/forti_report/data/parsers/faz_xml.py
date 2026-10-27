@@ -3,8 +3,8 @@ Parser de relatórios XML exportados pelo FortiAnalyzer.
 
 O layout XML varia por chart/schedule. Hoje o MENSAL unificado usa
 principalmente `mensal_json.py`; este módulo é fallback para download XML
-e será calibrado com amostras reais do schedule **MENSAL- RELATÓRIO GERAL**
-(Cruz Azul). Ver README → seção «Próximos passos».
+e será calibrado com amostras reais do schedule **MENSAL- RELATÓRIO GERAL**.
+Ver README → seção «Próximos passos».
 """
 
 from __future__ import annotations

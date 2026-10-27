@@ -32,7 +32,7 @@ fortiAnalyzer/
 |----------|--------|
 | `FAZ_HOST`, `FAZ_PORT`, `FAZ_USE_SSL`, `FAZ_VERIFY_SSL` | Conexão JSON-RPC FortiAnalyzer |
 | `FAZ_USER`, `FAZ_PASSWORD` | Autenticação |
-| `FAZ_ADOM` | Cliente no FAZ (ex.: `CRUZ_AZUL`) |
+| `FAZ_ADOM` | Cliente no FAZ (ex.: `ADOM_EXEMPLO`) |
 | `FAZ_REPORT_SCHEDULE` | Filtro do relatório MENSAL (ex.: `MENSAL- RELATÓRIO GERAL`) |
 | `FAZ_WAN_REPORT_SCHEDULE` | Relatório WAN semanal |
 | `FAZ_TIME_PERIOD` | Período padrão em execuções no FAZ |
@@ -47,7 +47,7 @@ Definições em: `src/forti_report/config.py`.
 | Artefato | Uso |
 |----------|-----|
 | `api.json` | Endpoints Report do FAZ (`/report/adom/{adom}/reports/...`); base para `faz/client.py` e `faz/reports.py` |
-| FortiAnalyzer (ambiente) | ADOM, schedules, dispositivos `fw-*-cruz-azul-*`, export JSON/XML/PDF |
+| FortiAnalyzer (ambiente) | ADOM, schedules, dispositivos `fw-*-exemplo-*`, export JSON/XML/PDF |
 | Relatório de referência WAN (opcional) | PDF em `tests/` para layout SEMANAL Tráfego WAN |
 
 ## Assets visuais (`assets/`)
@@ -58,7 +58,7 @@ Definições em: `src/forti_report/config.py`.
 | `assets/img/rodape_capa.png` | Faixa inferior da capa |
 | `assets/img/cabecalho-interno.png` | Cabeçalho páginas internas |
 | `assets/img/logo-horizontal-gray.svg` | Logo OL no cabeçalho interno |
-| `assets/img/logo_cruz-azul.png` | Logo cliente na capa |
+| `assets/img/logo_exemplo.png` | Logo cliente na capa |
 | `assets/cover.png`, `header.png`, `footer.png` | Legado / fallback |
 
 ## Saídas geradas (`output/`)

@@ -299,7 +299,7 @@ def main(argv: list[str] | None = None) -> int:
     gen_all.add_argument("--days", type=int, default=60)
 
     gen_reg = sub.add_parser("generate-unit", help="PDF consolidado de uma unidade regional")
-    gen_reg.add_argument("unit_code", help="Código da unidade: spo, cas, grs, oco, sne, sve")
+    gen_reg.add_argument("unit_code", help="Código da unidade regional cadastrada no tenant")
     gen_reg.add_argument("--days", type=int, default=60)
     gen_reg.add_argument("--metadata-only", action="store_true")
 
@@ -329,13 +329,13 @@ def main(argv: list[str] | None = None) -> int:
     gen_wan.add_argument("--pdf", type=str, default="", help="Caminho do PDF FAZ de referência")
 
     gen_wan1 = sub.add_parser("generate-wan-unit", help="PDF WAN de uma unidade regional")
-    gen_wan1.add_argument("unit_code", help="spo, cas, grs, oco, sne, sve")
+    gen_wan1.add_argument("unit_code", help="Código da unidade regional cadastrada no tenant")
     gen_wan1.add_argument("--days", type=int, default=60)
     gen_wan1.add_argument("--pdf", type=str, default="")
 
     sub.add_parser("demo", help="PDF demo com dados fictícios")
     gen = sub.add_parser("generate", help="PDF de um dispositivo específico")
-    gen.add_argument("device", help="Nome do dispositivo (ex.: fw-spo-cruz-azul-centro)")
+    gen.add_argument("device", help="Nome do dispositivo (ex.: fw-norte-matriz)")
 
     run_sched = sub.add_parser(
         "run-scheduled-mensal",

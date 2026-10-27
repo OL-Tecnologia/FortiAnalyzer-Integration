@@ -1,4 +1,4 @@
-# Relatório para tomada de decisão — Conteúdo FAZ no PDF Cruz Azul
+# Relatório para tomada de decisão — Conteúdo FAZ no PDF Cliente
 
 **Data:** 2026-06-08  
 **Escopo:** PDF MENSAL unificado · exports JSON/PDF FortiAnalyzer  
@@ -8,7 +8,7 @@
 
 ## 1. Contexto
 
-O FortiAnalyzer exporta relatórios **MENSAL- RELATÓRIO GERAL** em JSON (prioritário), XML ou PDF. O PDF Cruz Azul reutiliza dados tabulares e gráficos Plotly, mas **descartava**:
+O FortiAnalyzer exporta relatórios **MENSAL- RELATÓRIO GERAL** em JSON (prioritário), XML ou PDF. O PDF Cliente reutiliza dados tabulares e gráficos Plotly, mas **descartava**:
 
 | # | Lacuna | Impacto |
 |---|--------|---------|
@@ -49,7 +49,7 @@ Este documento registra **decisões** e o que foi **aplicado**.
 
 | Etapa | Decisão | Motivo |
 |-------|---------|--------|
-| 1 — Textos narrativos FAZ | **Adiar** | Substituídos por textos Cruz Azul; baixo ROI |
+| 1 — Textos narrativos FAZ | **Adiar** | Substituídos por textos Cliente; baixo ROI |
 | 4 — Parser PDF completo | **Adiar** | JSON é fonte principal; ampliar regex sob demanda |
 | 5 — Campos órfãos | **Parcial** | Apêndice de dispositivos pode ir para tabela global futura |
 

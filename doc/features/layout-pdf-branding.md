@@ -1,6 +1,6 @@
 # Feature — Layout e branding PDF (MENSAL)
 
-**Status:** ✅ V1 (Cruz Azul + OL)
+**Status:** ✅ V1 (Cliente + OL)
 
 ## Capa
 

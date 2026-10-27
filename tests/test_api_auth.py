@@ -7,9 +7,20 @@ from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 
 from forti_report.api.app import app
+from forti_report.clients.models import ClientConfig
 from forti_report.faz.auth import FazPortalSession
 
 client = TestClient(app)
+
+
+def _one_client():
+    return [
+        ClientConfig(
+            slug="cliente",
+            display_name="Cliente",
+            faz={"host": "192.0.2.10", "adom": "ADOM"},
+        )
+    ]
 
 
 def test_generate_without_session_returns_401():
@@ -27,6 +38,7 @@ def test_auth_me_unauthenticated():
     assert data["authenticated"] is False
 
 
+@patch("forti_report.api.app.list_clients_or_legacy", _one_client)
 @patch("forti_report.api.app.authenticate_faz")
 def test_login_sets_cookie(mock_auth):
     mock_auth.return_value = FazPortalSession(
@@ -34,7 +46,7 @@ def test_login_sets_cookie(mock_auth):
         faz_user="operator",
         faz_password="secret",
         faz_rpc_session="rpc",
-        adom="CRUZ_AZUL",
+        adom="ADOM_EXEMPLO",
         expires_at=__import__("time").time() + 3600,
     )
     res = client.post(
@@ -46,6 +58,7 @@ def test_login_sets_cookie(mock_auth):
     assert "faz_portal_session" in res.cookies
 
 
+@patch("forti_report.api.app.list_clients_or_legacy", _one_client)
 @patch("forti_report.api.app.authenticate_faz")
 def test_login_connection_error_returns_503(mock_auth):
     from forti_report.faz.auth import FazConnectionError
@@ -59,6 +72,7 @@ def test_login_connection_error_returns_503(mock_auth):
     assert "Timeout" in res.json()["detail"]
 
 
+@patch("forti_report.api.app.list_clients_or_legacy", _one_client)
 @patch("forti_report.faz.auth.FortiAnalyzerClient")
 @patch("forti_report.api.app.start_mensal_job")
 def test_generate_with_session(mock_start, mock_client_cls):
@@ -76,7 +90,7 @@ def test_generate_with_session(mock_start, mock_client_cls):
 
     mock_start.return_value = JobRecord(
         job_id="job123",
-        adom="CRUZ_AZUL",
+        adom="ADOM_EXEMPLO",
         portal_session_id=login.cookies.get("faz_portal_session", ""),
     )
     res = client.post(

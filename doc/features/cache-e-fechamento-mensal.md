@@ -4,7 +4,7 @@
 
 ## Regra de negócio
 
-- **Nomes de arquivo fixos** (`fw-spo-cruz-azul-centro.json`, PDF `MENSAL_UNIFICADO_CRUZ_AZUL.pdf`).  
+- **Nomes de arquivo fixos** (`fw-norte-matriz.json`, PDF `MENSAL_UNIFICADO_ADOM_EXEMPLO.pdf`).  
 - **Conteúdo sempre do relatório atual** no FAZ — nunca reutilizar mês anterior por engano.
 
 ## Como funciona

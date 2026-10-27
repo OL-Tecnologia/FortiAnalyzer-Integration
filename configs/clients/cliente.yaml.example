@@ -1,26 +1,25 @@
 # Exemplo ilustrativo — NÃO é carregado (só *.yaml).
-# Copie para cruz_azul.yaml e ajuste; não versionar e-mails/senhas (LGPD).
-slug: cruz_azul
-display_name: Cruz Azul
+# Copie para um slug próprio ou cadastre pela Administração. Não versionar e-mails nem senhas (LGPD).
+slug: cliente
+display_name: Cliente
 enabled: true
 faz:
-  host: 127.0.0.1
-  port: 8090
+  host: 192.0.2.10
+  port: 443
   use_ssl: true
   verify_ssl: false
-  adom: CRUZ_AZUL
+  adom: ADOM
   report_schedule_mensal: "MENSAL-RELATÓRIO DE ENDPOINT"
-  report_schedule_wan: "SEMANAL- RELATÓRIO TRÁFEGO WAN"
+  report_schedule_wan: ""
   time_period: last-30-days
 automation:
   faz_user: ""
-  faz_password_env: FAZ_PASSWORD
+  faz_password_env: ""
 hierarchy:
-  device_pattern: '^(?:(?P<prefix>hafw\d+)|fw)-(?P<region>[a-z]+)-cruz-azul-(?P<site>.+)$'
-  region_labels:
-    spo: Unidade São Paulo (SPO)
+  device_pattern: '^(?:(?P<prefix>hafw\d+)|fw)-(?P<region>[a-z0-9]+)-(?P<site>.+)$'
+  region_labels: {}
 pdf:
-  cover_logo: assets/clients/cruz_azul/logo.png
+  cover_logo: assets/clients/cliente/logo.png
   cover_logo_width_cm: 2.1
   cover_logo_align: right
   cover_logo_offset_x_cm: 0.0
@@ -30,12 +29,12 @@ pdf:
   internal_header: assets/img/cabecalho-interno.png
   header_logo: assets/img/logo-horizontal-gray.svg
   cover_title: RELATÓRIO MENSAL GERAL
-  email_subject_prefix: Cruz Azul | Relatório Mensal FortiAnalyzer
+  email_subject_prefix: ""
 output:
-  subdir: cruz_azul
+  subdir: cliente
 schedule:
   enabled: false
-  day: 5
+  day: 1
   hour: 6
   minute: 0
   timezone: America/Sao_Paulo

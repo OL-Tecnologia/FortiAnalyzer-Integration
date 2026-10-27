@@ -18,8 +18,8 @@ VERSÃO COMPILADA (.exe) — MULTI-TENANT (INSTALAÇÃO LIMPA)
   PRIMEIRO USO
   ------------
   1. Abra http://localhost:8000/admin.html
-  2. Senha Super Admin padrão: AltereEstaSenha
-     (troque no arquivo .env ao lado do .exe: PORTAL_ADMIN_PASSWORD=...)
+  2. Na primeira entrada, crie a senha do Super Admin.
+     Ela fica em .env (PORTAL_ADMIN_PASSWORD). Se esquecer, não há como entrar.
   3. Cadastre o cliente (host FAZ, ADOM, logo, e-mail, automação)
   4. No login do operador, selecione o cliente e use usuário/senha do FAZ
 

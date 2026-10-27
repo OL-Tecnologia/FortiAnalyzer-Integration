@@ -79,7 +79,7 @@ E-mail (de, para, cópia, alerta, prefixo do assunto) continua por tenant. Assun
 
 1. Listar relatórios `generated` do dispositivo.
 2. Ficar só com nome ou título que contém o prefixo daquele PDF. Um diário não substitui um semanal, e um semanal não substitui um mensal.
-3. O sufixo (`fw-cas-cruz-azul-colegio`, `MLGOMES_FG4H0E`, etc.) não filtra a hierarquia.
+3. O sufixo (`fw-sul-anexo`, `FW_MATRIZ_01`, etc.) não filtra a hierarquia.
 4. Baixar JSON, depois XML, depois PDF.
 5. Parser de endpoint não serve para configurações, sistema, banda ou WAN. Cada prefixo novo só entra no PDF depois de um JSON real com os títulos dos gráficos.
 

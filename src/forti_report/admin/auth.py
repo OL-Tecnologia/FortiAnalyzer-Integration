@@ -3,13 +3,21 @@
 from __future__ import annotations
 
 import hmac
+import os
 import secrets
 import threading
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
 
 from forti_report.config import Settings, get_settings
+from forti_report.runtime_paths import project_root
+from forti_report.services.env_file import apply_env_updates
+
+# Valor do template de instalação. Não autentica: a primeira entrada cria a senha.
+_INSTALL_PASSWORD = "altereestasenha"
+_MIN_PASSWORD_LENGTH = 8
 
 
 class AdminAuthError(Exception):
@@ -18,6 +26,14 @@ class AdminAuthError(Exception):
 
 class AdminRateLimitError(AdminAuthError):
     pass
+
+
+class AdminSetupError(AdminAuthError):
+    status_code = 400
+
+
+class AdminAlreadyConfigured(AdminSetupError):
+    status_code = 409
 
 
 @dataclass
@@ -84,15 +100,25 @@ class AdminSessionStore:
 
 
 _store = AdminSessionStore()
+_password_lock = threading.Lock()
 
 
 def get_admin_store() -> AdminSessionStore:
     return _store
 
 
+def _password_value(settings: Settings) -> str:
+    return (settings.portal_admin_password or "").strip()
+
+
+def _is_install_password(value: str) -> bool:
+    return value.casefold() == _INSTALL_PASSWORD
+
+
 def admin_password_configured(settings: Settings | None = None) -> bool:
     settings = settings or get_settings()
-    return bool(settings.portal_admin_password.strip())
+    value = _password_value(settings)
+    return bool(value) and not _is_install_password(value)
 
 
 def _passwords_match(provided: str, expected: str) -> bool:
@@ -111,11 +137,11 @@ def authenticate_admin(
     rate_limit_key: str | None = None,
 ) -> AdminSession:
     settings = settings or get_settings()
-    expected = (settings.portal_admin_password or "").strip()
+    expected = _password_value(settings)
     provided = (password or "").strip()
-    if not expected:
+    if not admin_password_configured(settings):
         raise AdminAuthError(
-            "Super Admin não configurado. Defina PORTAL_ADMIN_PASSWORD no arquivo .env."
+            "A senha do Super Admin ainda não foi criada. Crie a senha nesta tela."
         )
     if rate_limit_key:
         _store.check_rate_limit(rate_limit_key)
@@ -127,3 +153,39 @@ def authenticate_admin(
 
 def invalidate_admin_session(session_id: str | None) -> None:
     _store.invalidate(session_id)
+
+
+def set_initial_admin_password(
+    password: str,
+    confirm: str,
+    *,
+    env_path: Path | None = None,
+    rate_limit_key: str | None = None,
+) -> AdminSession:
+    """Grava a senha no .env na primeira entrada e abre a sessão."""
+    if rate_limit_key:
+        _store.check_rate_limit(rate_limit_key)
+    chosen = (password or "").strip()
+    repeated = (confirm or "").strip()
+    if len(chosen) < _MIN_PASSWORD_LENGTH:
+        raise AdminSetupError("A senha precisa ter pelo menos 8 caracteres.")
+    if chosen != repeated:
+        raise AdminSetupError("A confirmação não confere com a senha.")
+    if _is_install_password(chosen):
+        raise AdminSetupError("Escolha uma senha própria. A senha de instalação não entra.")
+    if any(char in chosen for char in "\r\n"):
+        raise AdminSetupError("A senha não pode ter quebra de linha.")
+
+    with _password_lock:
+        settings = get_settings()
+        if admin_password_configured(settings):
+            raise AdminAlreadyConfigured(
+                "A senha do Super Admin já foi definida. "
+                "Se esqueceu, não há como entrar de novo."
+            )
+        target = env_path or (project_root() / ".env")
+        apply_env_updates(target, {"PORTAL_ADMIN_PASSWORD": chosen})
+        os.environ["PORTAL_ADMIN_PASSWORD"] = chosen
+        fresh = get_settings()
+        ttl = max(5, fresh.portal_admin_session_ttl_minutes * 60)
+        return _store.create(ttl_seconds=ttl)

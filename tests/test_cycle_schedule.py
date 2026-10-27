@@ -12,7 +12,7 @@ def _item(prefix: str, period: str, path: str, cycle: str = "") -> HarvestItemRe
     return HarvestItemRef(
         cycle=cycle or ("diario" if prefix.startswith("RELAT") else ""),
         prefix=prefix,
-        device="MLGOMES_FG4H0E",
+        device="FW_MATRIZ_01",
         period_end=datetime.strptime(period, "%Y-%m-%d").date(),
         path=path,
         name=path,
@@ -199,12 +199,12 @@ def test_serie_longa_resume_minimo_maximo_e_ultimo():
     table = ChartTable(
         title="CPU",
         kind="line",
-        headers=["", "MLGOMES"],
+        headers=["", "MATRIZ"],
         rows=[["1790910000", "1"], ["1791000000", "9"], ["1791543600", "3"]],
         total_rows=3,
     )
     summary = _series_summary(table)
-    assert summary == [["MLGOMES", "1", "9", "3"]]
+    assert summary == [["MATRIZ", "1", "9", "3"]]
 
 
 def test_pdf_consolidado_abre_com_capa_e_fecha_com_rodape(tmp_path):
@@ -217,7 +217,7 @@ def test_pdf_consolidado_abre_com_capa_e_fecha_com_rodape(tmp_path):
     settings = get_settings().model_copy(
         update={
             "output_dir": tmp_path,
-            "client_display_name": "Ol-Gomes",
+            "client_display_name": "Cliente Exemplo",
             "faz_adom": "root",
         }
     )
@@ -228,7 +228,7 @@ def test_pdf_consolidado_abre_com_capa_e_fecha_com_rodape(tmp_path):
     cover = doc[0].get_textpage().get_text_bounded()
     body = doc[1].get_textpage().get_text_bounded()
     assert "RELATÓRIO SEMANAL" in cover
-    assert "Ol-Gomes" in cover
+    assert "Cliente Exemplo" in cover
     assert "05/10/2026 a 11/10/2026" in cover
     assert "Sumário" in body
     assert "RELATORIO SEMANAL" in body

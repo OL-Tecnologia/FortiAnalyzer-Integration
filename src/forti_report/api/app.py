@@ -12,12 +12,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response, StreamingResponse
 
 from forti_report.admin import (
+    AdminAlreadyConfigured,
     AdminAuthError,
     AdminRateLimitError,
     AdminSession,
+    AdminSetupError,
     admin_password_configured,
     authenticate_admin,
     invalidate_admin_session,
+    set_initial_admin_password,
 )
 from forti_report.api.deps import (
     get_admin_session,
@@ -28,9 +31,12 @@ from forti_report.api.deps import (
 from forti_report.api.schemas import (
     AdminLoginRequest,
     AdminMeResponse,
+    AdminSetupRequest,
     AuthMeResponse,
     AutomationSettingsResponse,
     AutomationSettingsUpdate,
+    EmailTestRequest,
+    EmailTestResponse,
     ClientConnectionTestRequest,
     ClientConnectionTestResponse,
     ClientInfoResponse,
@@ -82,6 +88,7 @@ from forti_report.services.automation_settings import (
 )
 from forti_report.services.job_store import JobRecord
 from forti_report.services.mensal_job import get_job_store, start_mensal_job
+from forti_report.services.email_delivery import send_test_message
 from forti_report.services.mensal_scheduler import (
     get_scheduler_status,
     start_background_scheduler,
@@ -314,6 +321,28 @@ def client_info(session: FazPortalSession | None = Depends(get_portal_session)) 
         adom=settings.faz_adom,
         display_name=settings.faz_adom,
         report_schedule=settings.faz_report_schedule or "MENSAL-RELATÓRIO DE ENDPOINT",
+    )
+
+
+@app.post("/api/admin/setup", response_model=AdminMeResponse)
+def admin_setup(body: AdminSetupRequest, request: Request, response: Response) -> AdminMeResponse:
+    try:
+        session = set_initial_admin_password(
+            body.password,
+            body.password_confirm,
+            rate_limit_key=_client_ip(request),
+        )
+    except AdminRateLimitError as exc:
+        raise HTTPException(429, str(exc)) from exc
+    except AdminAlreadyConfigured as exc:
+        raise HTTPException(exc.status_code, str(exc)) from exc
+    except AdminSetupError as exc:
+        raise HTTPException(exc.status_code, str(exc)) from exc
+    _set_admin_cookie(response, session)
+    return AdminMeResponse(
+        authenticated=True,
+        configured=True,
+        expires_at=session.expires_at_iso(),
     )
 
 
@@ -649,6 +678,29 @@ def _restart_scheduler() -> None:
     start_background_scheduler()
 
 
+def _apply_email_overrides(settings, body: EmailTestRequest):
+    updates: dict[str, str] = {}
+    if body.smtp_from is not None:
+        updates["smtp_from"] = body.smtp_from.strip()
+    if body.smtp_to is not None:
+        updates["smtp_to"] = body.smtp_to.strip()
+    if body.smtp_cc is not None:
+        updates["smtp_cc"] = body.smtp_cc.strip()
+    if not updates:
+        return settings
+    return settings.model_copy(update=updates)
+
+
+def _email_test_response(settings) -> EmailTestResponse:
+    result = send_test_message(settings)
+    return EmailTestResponse(
+        ok=result.ok,
+        message=result.message,
+        problem=result.problem,
+        fix=result.fix,
+    )
+
+
 @app.get("/api/settings/automation", response_model=AutomationSettingsResponse)
 def get_automation_config(
     session: FazPortalSession = Depends(require_faz_session),
@@ -686,6 +738,29 @@ def put_automation_config(
     except OSError as exc:
         raise HTTPException(500, f"Não foi possível gravar .env: {exc}") from exc
     return AutomationSettingsResponse(**view.__dict__)
+
+
+@app.post("/api/settings/email-test", response_model=EmailTestResponse)
+def test_email_delivery(
+    body: EmailTestRequest,
+    session: FazPortalSession = Depends(require_faz_session),
+) -> EmailTestResponse:
+    """Envia um e-mail de teste com o SMTP do .env e os endereços da tela."""
+    client = _session_client(session)
+    if client is not None:
+        settings = settings_from_client(client, use_automation_credentials=True)
+    else:
+        settings = get_settings()
+    return _email_test_response(_apply_email_overrides(settings, body))
+
+
+@app.post("/api/admin/email-test", response_model=EmailTestResponse)
+def admin_test_email_delivery(
+    body: EmailTestRequest,
+    _: AdminSession = Depends(require_admin_session),
+) -> EmailTestResponse:
+    """Envia um e-mail de teste a partir da Administração."""
+    return _email_test_response(_apply_email_overrides(get_settings(), body))
 
 
 @app.post("/api/reports/mensal/generate", response_model=JobCreatedResponse)

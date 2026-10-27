@@ -1,8 +1,8 @@
 # Feature — Login FortiAnalyzer (tela + sessão)
 
 **Status:** ✅ Implementado (portal web V1.1)  
-**Cliente inicial:** CRUZ_AZUL  
-**Relacionado:** [frontend-mensal-cruz-azul.md](frontend-mensal-cruz-azul.md), [v2-multi-cliente-api-frontend.md](v2-multi-cliente-api-frontend.md)
+**Cliente inicial:** ADOM_EXEMPLO  
+**Relacionado:** [frontend-mensal.md](frontend-mensal.md), [v2-multi-cliente-api-frontend.md](v2-multi-cliente-api-frontend.md)
 
 ---
 
@@ -10,7 +10,7 @@
 
 Hoje as credenciais FAZ (`FAZ_USER`, `FAZ_PASSWORD`) ficam no `.env` e o `FortiAnalyzerClient.login()` lê strings fixas do servidor. Isso é adequado para CLI/automação interna, mas **não** para um portal onde **cada operador informa suas próprias credenciais** e o sistema libera o acesso ao ADOM apenas após autenticação válida no FortiAnalyzer.
 
-**Requisito de negócio:** o usuário do sistema digita login/senha FAZ na tela; o backend chama um **módulo encapsulado** de autenticação; só então é permitido gerar o relatório MENSAL no ADOM configurado (`CRUZ_AZUL`).
+**Requisito de negócio:** o usuário do sistema digita login/senha FAZ na tela; o backend chama um **módulo encapsulado** de autenticação; só então é permitido gerar o relatório MENSAL no ADOM configurado (`ADOM_EXEMPLO`).
 
 ---
 
@@ -69,7 +69,7 @@ Hoje as credenciais FAZ (`FAZ_USER`, `FAZ_PASSWORD`) ficam no `.env` e o `FortiA
 └───────────────────────────────┬─────────────────────────────┘
                                 │ JSON-RPC
                                 ▼
-                    FortiAnalyzer (ADOM CRUZ_AZUL)
+                    FortiAnalyzer (ADOM ADOM_EXEMPLO)
 ```
 
 ### Fluxo resumido
@@ -110,7 +110,7 @@ def invalidate_session(session_id: str) -> None:
 | Variável | Papel |
 |----------|--------|
 | `FAZ_HOST`, `FAZ_PORT`, `FAZ_USE_SSL`, `FAZ_VERIFY_SSL` | Infraestrutura FAZ |
-| `FAZ_ADOM` | ADOM fixo (`CRUZ_AZUL`) |
+| `FAZ_ADOM` | ADOM fixo (`ADOM_EXEMPLO`) |
 | `FAZ_REPORT_SCHEDULE` | Schedule MENSAL |
 | `FAZ_SESSION_TTL_MINUTES` | TTL da sessão portal (novo, sugerido: 60) |
 | `FAZ_USER`, `FAZ_PASSWORD` | **Opcional** — só fallback CLI/dev; **vazio em produção web** |
@@ -142,7 +142,7 @@ Respostas de erro de login: mensagem genérica (“Credenciais inválidas”) �
 | Logout | Limpa cookie; volta ao login |
 | Senha | Campo `type=password`; não persistir no browser |
 
-Integração com [frontend-mensal-cruz-azul.md](frontend-mensal-cruz-azul.md): mesma identidade visual; login como **porta de entrada**.
+Integração com [frontend-mensal.md](frontend-mensal.md): mesma identidade visual; login como **porta de entrada**.
 
 ---
 
@@ -199,7 +199,7 @@ Integração com [frontend-mensal-cruz-azul.md](frontend-mensal-cruz-azul.md): m
 3. Tela de login no `frontend/`  
 4. Ajustar `mensal_job` / pipeline para credenciais da sessão  
 5. Testes: login OK, login falho, 401 em generate, expiração TTL  
-6. Atualizar [frontend-mensal-cruz-azul.md](frontend-mensal-cruz-azul.md) com seção “Autenticação”  
+6. Atualizar [frontend-mensal.md](frontend-mensal.md) com seção “Autenticação”  
 
 ---
 
@@ -207,6 +207,6 @@ Integração com [frontend-mensal-cruz-azul.md](frontend-mensal-cruz-azul.md): m
 
 - Login FAZ atual: `src/forti_report/faz/client.py` (`login()` → `/sys/login/user`)  
 - Config: `src/forti_report/config.py`  
-- Frontend V1: `frontend/`, `doc/features/frontend-mensal-cruz-azul.md`  
+- Frontend V1: `frontend/`, `doc/features/frontend-mensal.md`  
 - Multi-cliente / multi-tenant: `doc/features/multi-tenant-clientes-faz.md`  
 - Rascunho V2 (API): `doc/features/v2-multi-cliente-api-frontend.md`  

@@ -131,7 +131,7 @@ def build_global_resumo_executivo_flowables(
     styles,
     charts_enabled: bool = True,
 ) -> list:
-    """Resumo executivo agregado de todos os dispositivos Cruz Azul."""
+    """Resumo executivo agregado dos dispositivos do tenant."""
     total = 0
     online = 0
     with_report = 0

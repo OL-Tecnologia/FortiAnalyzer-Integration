@@ -15,7 +15,7 @@ from forti_report.data.parsers.mensal_json import parse_mensal_json
 from forti_report.pdf.unified_mensal_builder import _UnifiedMensalDoc
 
 CACHE = ROOT / "output" / "faz_mensal"
-UNIFIED = ROOT / "output" / "MENSAL_UNIFICADO_CRUZ_AZUL_20260603.pdf"
+UNIFIED = ROOT / "output" / "MENSAL_UNIFICADO_ADOM_EXEMPLO_20260603.pdf"
 
 # Seções do layout MENSAL GERAL (layout-id 12) — referência FAZ
 LAYOUT_SECTIONS = [
@@ -140,12 +140,12 @@ def extract_pdf_sections(pdf_path: Path) -> list[str]:
 
 
 def main() -> None:
-    devices = sorted(CACHE.glob("fw-cas-cruz-azul-*.json"))
+    devices = sorted(CACHE.glob("fw-norte-*.json"))
     if not devices:
         devices = sorted(CACHE.glob("fw-*.json"))[:2]
 
     print("=" * 70)
-    print("COMPARAÇÃO MENSAL GERAL — CAS (e amostra geral)")
+    print("COMPARAÇÃO MENSAL GERAL")
     print("=" * 70)
 
     all_charts: dict[str, list[dict]] = {}

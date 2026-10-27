@@ -226,7 +226,7 @@ def _collect_updates(current: dict[str, str]) -> dict[str, str]:
 
     print("\n=== 3) E-mail SMTP (configurável: From / To / alerta) ===")
     print("  Opção A: smtp.office365.com:587 + autenticação (produção)")
-    print("  Opção B: mail.onelinea.com.br:25 sem auth (só rede interna)")
+    print("  Opção B: relay interno na porta 25, sem senha (só na rede interna)")
     print("  NÃO use mail.protection.outlook.com\n")
     updates["SMTP_HOST"] = _prompt(
         "Servidor SMTP",
